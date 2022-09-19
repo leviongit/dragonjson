@@ -17,7 +17,7 @@ module JSON
     def write_hash_inline(str, value, indent_depth, indent_size)
       raise ArgumentError, "value must be a Hash" unless value.is_a?(Hash)
       raise JSONKeyError, "Not all keys in hash are strings/symbols" unless value.keys.all? {
-        _1.is_a?(String) || _1.is_a?(Symbol)
+        String === _1 || Symbol === _1
       }
 
       return str << "{}" if value.keys.length == 0
@@ -36,7 +36,7 @@ module JSON
     def write_hash_block(str, value, indent_depth, indent_size)
       raise ArgumentError, "value must be a Hash" unless value.is_a?(Hash)
       raise JSONKeyError, "Not all keys in hash are strings/symbols" unless value.keys.all? {
-        _1.is_a?(String) || _1.is_a?(Symbol)
+        String === _1 || Symbol === _1
       }
 
       str << "{"
