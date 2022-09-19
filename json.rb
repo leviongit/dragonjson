@@ -1,15 +1,15 @@
 module JSON
   class JSONKeyError < StandardError; end
-  class JSONParseError < StandardError; end
 
   class << self
-    def write(str, value, indent_size = 4)
-      raise ArgumentError, "Top-level value must be either an Array or a Hash" unless value.is_a?(Array) || value.is_a?(Hash)
+    def write(value, indent_size = 4)
+      raise ArgumentError, "Top-level value must be either an Array or a Hash" unless Array === value || Hash === value
+
+      str = ""
 
       write_value(str, value, 0, indent_size)
-    end
 
-    def read(str)
+      str
     end
 
     private
@@ -107,101 +107,6 @@ module JSON
         str << "false"
       else
         return value.write_json(str, indent_depth + 1, indent_size)
-      end
-    end
-
-    def ws?(c)
-      " " == c ||
-      "\t" == c ||
-      "\f" == c ||
-      "\n" == c ||
-      "\r" == c
-    end
-
-    def delim?(c)
-      ws?(c) ||
-      "," == c ||
-      "}" == c ||
-      "]" == c
-    end
-
-    def skip_ws(str)
-      i = 0
-      i += 1 while (ws?(str[i]))
-      str.slice!(0, i)
-    end
-
-    def read_value(str)
-    end
-
-    def read_object(str)
-    end
-
-    def read_array(str)
-    end
-
-    def read_string(str)
-      str.slice!(0) # skip the opening `"`
-
-      ret = ""
-
-      i = 0
-      while (c = str[i]) != '"'
-        i += 1
-        if "\\" == c
-          ret << str.slice!(0, i - 1)
-          str.slice!(0) # skip the `\`
-          i = 0
-
-          ec = str.slice!(0) # get the escape char
-          case ec
-          # "\a", "\b", "\t", "\n", "\v", "\f", "\r", "\e", "\\", "\""
-          when "a"
-            ret << "\a"
-          when "b"
-            ret << "\b"
-          when "t"
-            ret << "\t"
-          when "n"
-            ret << "\n"
-          when "v"
-            ret << "\v"
-          when "f"
-            ret << "\f"
-          when "r"
-            ret << "\r"
-          when "e"
-            ret << "\e"
-          when "\\"
-            ret << "\\"
-          when "\""
-            ret << "\""
-          end
-        end
-      end
-      ret << str.slice!(0, i)
-
-      ret
-    end
-
-    def read_number(str)
-    end
-
-    # used for bare words (i.e. `true`, `false`, and `null`);
-    # raises an error if the word is not one of those three
-    def read_value(str)
-      i = 1
-      i += 1 until (delim?(str[i]))
-      w = str.slice!(0, i)
-      case w
-      when "true"
-        true
-      when "false"
-        false
-      when "null"
-        nil
-      else
-        raise JSONParseError, "Unexpected bare word #{w.inspect}"
       end
     end
   end
