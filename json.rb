@@ -55,7 +55,7 @@ module LevisLibs
         values = self.map { |v| "#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty)}" }
 
         if minify
-          "[#{values.join("")}]"
+          "[#{values.join(",")}]"
         else
           indent = " " * (indent_depth * indent_size)
           indent_p1 = " " * ((indent_depth + 1) * indent_size)
