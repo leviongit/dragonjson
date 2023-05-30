@@ -1,6 +1,10 @@
 module LevisLibs
   module JSON
     class JSONParser
+      class UnexpectedChar < StandardError
+      end
+
+      WS = " \n\r\t".chars
       IS_WSPCE = -> (c) { WS.include?(c) }
       IS_1TO9 = -> (c) { ("1".."9") === c }
       IS_DIGIT = -> (c) { ("0".."9") === c }
@@ -61,7 +65,7 @@ module LevisLibs
       end
 
       def __expect!(c)
-        __match!(c) || raise(UnexpectedChar, "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}")
+        __match!(c) || raise(UnexpectedChar, "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
         __peek_prev
       end
 
@@ -125,38 +129,41 @@ module LevisLibs
           __string("null")
           nil
         else
-          raise UnexpectedChar, "Unexpected char '#{__peek}' at ln:#{@ln}, col:#{@col}"
+          raise UnexpectedChar, "Unexpected char '#{__peek}' at [#{@ln}:#{@col}]"
         end
       end
 
       def __parse_number(**kw)
         start = @idx
-        __read_integer ||
-          raise(
-            UnexpectedChar,
-            "Expected the integer part of a numeric literal, got '#{__peek}', ln: #{@ln}, col: #{@col}, idx: #{@idx}"
-          )
+        __read_integer || raise(
+          UnexpectedChar,
+          "Expected the integer part of a numeric literal, got '#{__peek}', [#{@ln}:#{@col}]"
+        )
         __read_frac ||
           raise(
             UnexpectedChar,
-            "Expected nothing or the fractional part of a numeric literal, got '#{__peek}', ln: #{@ln}, col: #{@col}, idx: #{@idx}"
+            "Expected nothing or the fractional part of a numeric literal, got '#{__peek}', [#{@ln}:#{@col}]"
           )
         __read_exp ||
           raise(
             UnexpectedChar,
-            "Expected nothing or the exponent part of a numeric literal, got '#{__peek}', ln: #{@ln}, col: #{@col}, idx: #{@idx}"
+            "Expected nothing or the exponent part of a numeric literal, got '#{__peek}' [#{@ln}:#{@col}]"
           )
 
         @str[start..@idx].to_f
       end
 
+      def __read_unsigned_integer(**kw)
+        __read_onenine_digits || __read_digit
+      end
+
       def __read_integer(**kw)
-        __read_digit || __read_onenine_digits || (__match!("-") && (__read_digit || __read_onenine_digits))
+        __read_unsigned_integer || (__match!("-") && __read_unsigned_integer)
       end
 
       def __read_frac(**kw)
         if __match!(".")
-          __read_digits(**kw)
+          __read_some_digits(**kw)
         else
           true
         end
@@ -164,7 +171,7 @@ module LevisLibs
 
       def __read_exp(**kw)
         if __match_any!("e", "E")
-          __read_sign(**kw) && __read_digits(**kw)
+          __read_sign(**kw) && __read_some_digits(**kw)
         else
           true
         end
@@ -184,10 +191,15 @@ module LevisLibs
       end
 
       def __read_onenine_digits(**kw)
-        __read_onenine(**kw) && __read_digits(**kw)
+        __read_onenine(**kw) && __read_many_digits(**kw)
       end
 
-      def __read_digits(**kw)
+      def __read_many_digits(**kw)
+        next while __read_digit(**kw)
+        true
+      end
+
+      def __read_some_digits(**kw)
         any = false
         any = true while __read_digit(**kw)
         any
