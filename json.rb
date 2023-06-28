@@ -139,6 +139,8 @@ module LevisLibs
           UnexpectedChar,
           "Expected the integer part of a numeric literal, got '#{__peek}', [#{@ln}:#{@col}]"
         )
+        iend = @idx
+
         __read_frac ||
           raise(
             UnexpectedChar,
@@ -149,8 +151,13 @@ module LevisLibs
             UnexpectedChar,
             "Expected nothing or the exponent part of a numeric literal, got '#{__peek}' [#{@ln}:#{@col}]"
           )
+        nend = @idx
 
-        @str[start..@idx].to_f
+        if iend == nend
+          @str[start..@idx].to_i
+        else
+          @str[start..@idx].to_f
+        end
       end
 
       def __read_unsigned_integer(**kw)
