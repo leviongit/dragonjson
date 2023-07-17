@@ -443,6 +443,10 @@ module LevisLibs
     end
 
     class ::Symbol
+      def self.from_json(json_str)
+        json_str.to_sym
+      end
+
       def to_json(
         indent_depth: 0,
         indent_size: 4,
@@ -450,7 +454,19 @@ module LevisLibs
         space_in_empty: true,
         hash_key: false
       )
-        self.to_s.inspect
+        if hash_key
+          self.to_s.inspect
+        else
+          {
+            __class__: 'Symbol',
+            __value__: self.to_s
+          }.to_json(
+            indent_depth: indent_depth,
+            indent_size: indent_size,
+            minify: minify,
+            space_in_empty: space_in_empty
+          )
+        end
       end
     end
 
