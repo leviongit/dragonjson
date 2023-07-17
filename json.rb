@@ -251,7 +251,7 @@ module LevisLibs
             when "t"
               str << "\t"
             when "u"
-              notyetimplemented!
+              raise(NotImplementedError, "unicode escapes not yet implemented")
             end)
       end
 
