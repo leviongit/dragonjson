@@ -106,6 +106,7 @@ module LevisLibs
 
           hsh = __parse_members(**kw)
           __expect!("}")
+          hsh = __parse_object_value_if_needed(hsh, **kw)
           hsh
         when "["
           __advance
@@ -290,6 +291,18 @@ module LevisLibs
         __expect!(":")
         (value = __parse_element(**kw))
         [kw[:symbolize_keys] ? key.to_sym : key, value]
+      end
+
+      def __parse_object_value_if_needed(hsh, **kw)
+        hash_keys = hsh.keys.map(&:to_s).sort!
+        return hsh unless hash_keys == %w[__class__ __value__]
+
+        class_name = hsh[kw[:symbolize_keys] ? :__class__ : '__class__']
+        value = hsh[kw[:symbolize_keys] ? :__value__ : '__value__']
+        klass = Object.const_get(class_name)
+        raise JSONUnsupportedType, "Object of class #{class_name} cannot be deserialized" unless klass.respond_to?(:from_json)
+
+        klass.from_json(value)
       end
     end
 
