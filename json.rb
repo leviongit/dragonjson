@@ -106,6 +106,7 @@ module LevisLibs
 
           hsh = __parse_members(**kw)
           __expect!("}")
+          hsh = __parse_symbol_value_if_needed(hsh, **kw)
           hsh
         when "["
           __advance
@@ -291,6 +292,13 @@ module LevisLibs
         (value = __parse_element(**kw))
         [kw[:symbolize_keys] ? key.to_sym : key, value]
       end
+
+      def __parse_symbol_value_if_needed(hsh, **kw)
+        special_symbol_key = kw[:symbolize_keys] ? :__symbol__ : '__symbol__'
+        return hsh[special_symbol_key].to_sym if hsh.keys == [special_symbol_key]
+
+        hsh
+      end
     end
 
     class JSONKeyError < StandardError
@@ -437,7 +445,16 @@ module LevisLibs
         space_in_empty: true,
         hash_key: false
       )
-        self.to_s.inspect
+        if hash_key
+          self.to_s.inspect
+        else
+          { __symbol__: self.to_s }.to_json(
+            indent_depth: indent_depth,
+            indent_size: indent_size,
+            minify: minify,
+            space_in_empty: space_in_empty
+          )
+        end
       end
     end
 
