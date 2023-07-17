@@ -323,7 +323,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        **kw
       )
         raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? { String === _1 || Symbol === _1 }
 
@@ -347,7 +348,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        **kw
       )
         return "[#{space_in_empty && !minify ? " " : ""}]" if self.length == 0
 
@@ -370,10 +372,7 @@ module LevisLibs
 
     class ::Numeric
       def to_json(
-        indent_depth: 0,
-        indent_size: 4,
-        minify: false,
-        space_in_empty: true
+        **kw
       )
         self.inspect
       end
@@ -381,10 +380,7 @@ module LevisLibs
 
     class ::TrueClass
       def to_json(
-        indent_depth: 0,
-        indent_size: 4,
-        minify: false,
-        space_in_empty: true
+        **kw
       )
         "true"
       end
@@ -392,10 +388,7 @@ module LevisLibs
 
     class ::FalseClass
       def to_json(
-        indent_depth: 0,
-        indent_size: 4,
-        minify: false,
-        space_in_empty: true
+        **kw
       )
         "false"
       end
@@ -403,10 +396,7 @@ module LevisLibs
 
     class ::NilClass
       def to_json(
-        indent_depth: 0,
-        indent_size: 4,
-        minify: false,
-        space_in_empty: true
+        **kw
       )
         "null"
       end
@@ -414,10 +404,7 @@ module LevisLibs
 
     class ::String
       def to_json(
-        indent_depth: 0,
-        indent_size: 4,
-        minify: false,
-        space_in_empty: true
+        **kw
       )
         self.inspect
       end
@@ -425,10 +412,7 @@ module LevisLibs
 
     class ::Symbol
       def to_json(
-        indent_depth: 0,
-        indent_size: 4,
-        minify: false,
-        space_in_empty: true
+        **kw
       )
         self.to_s.inspect
       end
@@ -436,10 +420,7 @@ module LevisLibs
 
     class ::Object
       def to_json(
-        indent_depth: 0,
-        indent_size: 4,
-        minify: false,
-        space_in_empty: true
+        **kw
       )
         raise JSONUnsupportedType, "Object of class #{self.class.name} cannot be serialized to JSON"
       end
