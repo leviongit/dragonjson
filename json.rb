@@ -323,14 +323,15 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? { String === _1 || Symbol === _1 }
 
         return "{#{space_in_empty && !minify ? " " : ""}}" if self.length == 0
 
         space = minify ? "" : " "
-        pairs = self.map { |k, v| "#{k.to_json}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty)}" }
+        pairs = self.map { |k, v| "#{k.to_json(hash_key: true)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty)}" }
 
         if minify
           "{#{pairs.join(",")}}"
@@ -373,7 +374,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         self.inspect
       end
@@ -384,7 +386,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         "true"
       end
@@ -395,7 +398,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         "false"
       end
@@ -406,7 +410,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         "null"
       end
@@ -417,7 +422,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         self.inspect
       end
@@ -428,7 +434,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         self.to_s.inspect
       end
@@ -439,7 +446,8 @@ module LevisLibs
         indent_depth: 0,
         indent_size: 4,
         minify: false,
-        space_in_empty: true
+        space_in_empty: true,
+        hash_key: false
       )
         raise JSONUnsupportedType, "Object of class #{self.class.name} cannot be serialized to JSON"
       end
