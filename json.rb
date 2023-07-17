@@ -97,22 +97,27 @@ module LevisLibs
 
       alias __parse_top __parse_element
 
-      def __parse_value(**kw)
+      def __parse_value(extensions: false, **kw)
         case __peek
         when "{"
           __advance
           __skip_ws
           return {} if __match!("}")
 
-          hsh = __parse_members(**kw)
+          hsh = __parse_members(extensions: extensions, **kw)
           __expect!("}")
+
+          if extensions
+            hsh = __handle_parser_extensions(hsh, symbolize_keys: kw[:symbolize_keys], **kw)
+          end
+
           hsh
         when "["
           __advance
           __skip_ws
           return [] if __match!("]")
 
-          ary = __parse_elements(**kw)
+          ary = __parse_elements(extensions: extensions, **kw)
           __expect!("]")
           ary
         when "\""
@@ -291,6 +296,38 @@ module LevisLibs
         (value = __parse_element(**kw))
         [kw[:symbolize_keys] ? key.to_sym : key, value]
       end
+
+      def __handle_symbol_extension(hsh, symbolize_keys: false, **kw)
+        hsh[symbolize_keys ? :"@@jm:symbol" : "@@jm:symbol"]&.to_sym
+      end
+
+      def __handle_object_extension(hsh, symbolize_keys: false, **kw)
+        class_key = symbolize_keys ? :"@@jm:class" : "@@jm:class"
+
+        classname = hsh[class_key]
+        return if !classname
+
+        klass = Object.const_get(classname)
+
+        if !klass.respond_to?(:from_json)
+          raise JSONUnsupportedType, "class #{classname} doesn't implement the `from_json` method"
+        end
+
+        value_key = symbolize_keys ? :"@@jm:value" : "@@jm:value"
+        value = hsh[value_key]
+        return if !value
+
+        klass.from_json(value)
+      end
+
+      def __handle_parser_extensions(hsh, symbolize_keys: false, **kw)
+        (if hsh.size == 1
+          __handle_symbol_extension(hsh, symbolize_keys: symbolize_keys, **kw)
+        elsif hsh.size == 2
+          __handle_object_extension(hsh, symbolize_keys: symbolize_keys, **kw)
+        end) ||
+          hsh
+      end
     end
 
     class JSONKeyError < StandardError
@@ -300,21 +337,22 @@ module LevisLibs
     end
 
     class << self
-      def write(value, indent_size = 4)
+      def write(value, indent_size = 4, **kw)
         raise ArgumentError, "Top-level value must be either an Array or a Hash" unless Array === value || Hash === value
 
         value.to_json(
           indent_depth: 0,
           indent_size: indent_size,
-          minify: indent_size == -1
+          minify: indent_size == -1,
+          **kw
         )
       end
 
       def parse(
         string,
-        symbolize_keys: false
+        **kw
       )
-        JSONParser.new(string).parse(symbolize_keys: symbolize_keys)
+        JSONParser.new(string).parse(**kw)
       end
     end
 
@@ -331,7 +369,7 @@ module LevisLibs
         return "{#{space_in_empty && !minify ? " " : ""}}" if self.length == 0
 
         space = minify ? "" : " "
-        pairs = self.map { |k, v| "#{k.to_json}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty)}" }
+        pairs = self.map { |k, v| "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty, **kw)}" }
 
         if minify
           "{#{pairs.join(",")}}"
@@ -354,7 +392,7 @@ module LevisLibs
         return "[#{space_in_empty && !minify ? " " : ""}]" if self.length == 0
 
         space = minify ? "" : " "
-        values = self.map { |v| "#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty)}" }
+        values = self.map { |v| "#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty, **kw)}" }
 
         if minify
           "[#{values.join(",")}]"
@@ -412,9 +450,15 @@ module LevisLibs
 
     class ::Symbol
       def to_json(
+        extensions: false,
+        symbolize_keys: false,
         **kw
       )
-        self.to_s.inspect
+        if extensions
+          {:"@@jm:symbol" => self.to_s}.to_json(**kw, minify: true)
+        else
+          self.to_s.inspect
+        end
       end
     end
 
