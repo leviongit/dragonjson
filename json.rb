@@ -314,7 +314,7 @@ module LevisLibs
         end
 
         value_key = symbolize_keys ? :"@@jm:value" : "@@jm:value"
-        return if hsh.key?(value_key)
+        return if !hsh.key?(value_key)
         value = hsh[value_key]
 
         klass.from_json(value)
