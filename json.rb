@@ -460,9 +460,17 @@ module LevisLibs
 
     class ::Object
       def to_json(
+        value: nil,
         **kw
       )
-        raise JSONUnsupportedType, "Object of class #{self.class.name} cannot be serialized to JSON"
+        if self.class.instance_method(__method__).owner == Object
+          raise JSONUnsupportedType, "Object of class #{self.class.name} cannot be serialized to JSON"
+        end
+
+        {
+          "@@jm:class" => self.class.name,
+          "@@jm:value" => value
+        }.to_json(**kw)
       end
     end
   end
