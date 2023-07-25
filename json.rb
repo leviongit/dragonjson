@@ -399,11 +399,7 @@ module LevisLibs
         else
           indent = " " * (indent_depth * indent_size)
           indent_p1 = " " * ((indent_depth + 1) * indent_size)
-          <<~JSON
-            [
-            #{indent_p1}#{values.join(",\n#{indent_p1}")}
-            #{indent}]
-          JSON
+          "[\n#{indent_p1}#{values.join(",\n#{indent_p1}")}\n#{indent}]"
         end
       end
     end
