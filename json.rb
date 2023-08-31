@@ -5,11 +5,11 @@ module LevisLibs
       end
 
       WS = " \n\r\t".chars
-      IS_WSPCE = -> (c) { WS.include?(c) }
-      IS_1TO9 = -> (c) { ("1".."9") === c }
-      IS_DIGIT = -> (c) { ("0".."9") === c }
-      IS_ALPHA = -> (c) { ("a".."z") === c || ("A".."Z") === c || "_" == c }
-      IS_ALNUM = -> (c) { IS_ALPHA[c] || IS_DIGIT[c] }
+      IS_WSPCE = ->(c) { WS.include?(c) }
+      IS_1TO9 = ->(c) { ("1".."9") === c }
+      IS_DIGIT = ->(c) { ("0".."9") === c }
+      IS_ALPHA = ->(c) { ("a".."z") === c || ("A".."Z") === c || "_" == c }
+      IS_ALNUM = ->(c) { IS_ALPHA[c] || IS_DIGIT[c] }
 
       def initialize(string)
         @len = string.size
@@ -189,11 +189,11 @@ module LevisLibs
         end
       end
 
-      def __read_unsigned_integer(**kw)
+      def __read_unsigned_integer(**_kw)
         __read_onenine_digits || __read_digit
       end
 
-      def __read_integer(**kw)
+      def __read_integer(**_kw)
         __read_unsigned_integer || (__match!("-") && __read_unsigned_integer)
       end
 
@@ -215,18 +215,18 @@ module LevisLibs
         end
       end
 
-      def __read_sign(**kw)
+      def __read_sign(**_kw)
         cc = @str[@idx]
         __advance if cc == "+" || cc == "-"
         true
       end
 
-      def __read_digit(**kw)
+      def __read_digit(**_kw)
         cc = @str[@idx]
         (cc >= "0" && cc <= "9") && __advance
       end
 
-      def __read_onenine(**kw)
+      def __read_onenine(**_kw)
         cc = @str[@idx]
         (cc >= "1" && cc <= "9") && __advance
       end
@@ -265,7 +265,7 @@ module LevisLibs
         any
       end
 
-      def __read_escape(str, **kw)
+      def __read_escape(str, **_kw)
         __match!("\\") &&
           (__expect_any!("\"", "\\", "/", "b", "f", "n", "r", "t", "u") &&
             case @str[@idx - 1] # __peek_prev
@@ -325,11 +325,11 @@ module LevisLibs
         [kw[:symbolize_keys] ? key.to_sym : key, value]
       end
 
-      def __handle_symbol_extension(hsh, symbolize_keys: false, **kw)
+      def __handle_symbol_extension(hsh, symbolize_keys: false, **_kw)
         hsh[symbolize_keys ? :"@@jm:symbol" : "@@jm:symbol"]&.to_sym
       end
 
-      def __handle_object_extension(hsh, symbolize_keys: false, **kw)
+      def __handle_object_extension(hsh, symbolize_keys: false, **_kw)
         class_key = symbolize_keys ? :"@@jm:class" : "@@jm:class"
 
         classname = hsh[class_key]
@@ -369,7 +369,10 @@ module LevisLibs
 
     class << self
       def write(value, indent_size = 4, **kw)
-        raise ArgumentError, "Top-level value must be either an Array or a Hash" unless Array === value || Hash === value
+        if !(Array === value || Hash === value)
+          raise ArgumentError,
+                "Top-level value must be either an Array or a Hash"
+        end
 
         value.to_json(
           indent_depth: 0,
@@ -396,6 +399,7 @@ module LevisLibs
         **kw
       )
         raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? { String === _1 || Symbol === _1 }
+
         space_in_empty &&= !minify
 
         return "{#{space_in_empty ? " " : ""}}" if self.length == 0
@@ -451,7 +455,7 @@ module LevisLibs
 
     class ::Numeric
       def to_json(
-        **kw
+        **_kw
       )
         self.inspect
       end
@@ -459,7 +463,7 @@ module LevisLibs
 
     class ::TrueClass
       def to_json(
-        **kw
+        **_kw
       )
         "true"
       end
@@ -467,7 +471,7 @@ module LevisLibs
 
     class ::FalseClass
       def to_json(
-        **kw
+        **_kw
       )
         "false"
       end
@@ -475,7 +479,7 @@ module LevisLibs
 
     class ::NilClass
       def to_json(
-        **kw
+        **_kw
       )
         "null"
       end
@@ -483,7 +487,7 @@ module LevisLibs
 
     class ::String
       def to_json(
-        **kw
+        **_kw
       )
         self.inspect
       end
