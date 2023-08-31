@@ -19,10 +19,6 @@ module LevisLibs
         @ln = 1
       end
 
-      def parse(symbolize_keys: false, **kw)
-        __parse_top(symbolize_keys: symbolize_keys, **kw)
-      end
-
       def __advance
         c = @str[@idx]
         @idx += 1
@@ -46,12 +42,12 @@ module LevisLibs
 
       def __match!(c)
         if String === c
-          if __peek == c
+          if @str[@idx] == c # __peek
             __advance
             return true
           end
         elsif Proc === c
-          if c[__peek]
+          if c[@str[@idx]] # __peek
             __advance
             return true
           end
@@ -61,31 +57,62 @@ module LevisLibs
       end
 
       def __match_any!(*cs)
-        cs.any? { __match!(_1) }
+        # cs.any? { __match!(_1) }
+        cl = cs.length
+        i = 0
+        while cl > i
+          if String === c
+            if @str[@idx] == c # __peek
+              __advance
+              return true
+            end
+          elsif Proc === c
+            if c[@str[@idx]] # __peek
+              __advance
+              return true
+            end
+          end
+          i += 1
+        end
+        return false
       end
 
       def __expect!(c)
-        __match!(c) || raise(UnexpectedChar, "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
-        __peek_prev
+        __match!(c) || raise(UnexpectedChar,
+                             "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
+        @str[@idx - 1] # __peek_prev
       end
 
       def __expect_any!(*cs)
         cs.any? { __match!(_1) } ||
-          raise(UnexpectedChar, "Expected any of #{cs.map(&:inspect).join(", ")}, but got #{__peek.inspect}")
-        __peek_prev
+          raise(UnexpectedChar, "Expected any of #{cs.map { _1.inspect }.join(", ")}, but got #{__peek.inspect}")
+        @str[@idx - 1] # __peek_prev
       end
 
       def __string(str)
-        last = ""
-        str.chars.all? {
-          last = _1
-          __match!(_1)
-        } ||
-          raise(UnexpectedChar, "Expected '#{last}', got '#{__peek}' (in \"#{str}\" literal)")
+        # last = ""
+        # str.chars.all? {
+        #   last = _1
+        #   __match!(_1)
+        # } ||
+        #   raise(UnexpectedChar, "Expected '#{last}', got '#{__peek}' (in \"#{str}\" literal)")
+        sl = str.length
+        i = 0
+        while sl > i
+          raise(UnexpectedChar, "Expected '#{str[i]}', got '#{__peek}' (in \"#{str}\" literal)") if @str[@idx] != str[i]
+
+          __advance
+          i += 1
+        end
       end
 
       def __skip_ws
-        __advance while IS_WSPCE[__peek]
+        cc = @str[@idx]
+        (__advance
+         cc = @str[@idx]) while cc == " " ||
+                                cc == "\t" ||
+                                cc == "\n" ||
+                                cc == "\r"
       end
 
       def __parse_element(**kw)
@@ -95,7 +122,6 @@ module LevisLibs
         v
       end
 
-      alias __parse_top __parse_element
 
       def __parse_value(extensions: false, **kw)
         case __peek
@@ -107,9 +133,7 @@ module LevisLibs
           hsh = __parse_members(extensions: extensions, **kw)
           __expect!("}")
 
-          if extensions
-            hsh = __handle_parser_extensions(hsh, symbolize_keys: kw[:symbolize_keys], **kw)
-          end
+          hsh = __handle_parser_extensions(hsh, symbolize_keys: kw[:symbolize_keys], **kw) if extensions
 
           hsh
         when "["
@@ -138,7 +162,7 @@ module LevisLibs
         end
       end
 
-      def __parse_number(**kw)
+      def __parse_number(**_kw)
         start = @idx
         __read_integer || raise(
           UnexpectedChar,
@@ -182,7 +206,9 @@ module LevisLibs
       end
 
       def __read_exp(**kw)
-        if __match_any!("e", "E")
+        cc = @str[@idx]
+        if cc == "e" || cc == "E"
+          __advance
           __read_sign(**kw) && __read_some_digits(**kw)
         else
           true
@@ -190,16 +216,19 @@ module LevisLibs
       end
 
       def __read_sign(**kw)
-        __match_any!("-", "+")
+        cc = @str[@idx]
+        __advance if cc == "+" || cc == "-"
         true
       end
 
       def __read_digit(**kw)
-        IS_DIGIT[__peek] && __advance
+        cc = @str[@idx]
+        (cc >= "0" && cc <= "9") && __advance
       end
 
       def __read_onenine(**kw)
-        IS_1TO9[__peek] && __advance
+        cc = @str[@idx]
+        (cc >= "1" && cc <= "9") && __advance
       end
 
       def __read_onenine_digits(**kw)
@@ -219,15 +248,16 @@ module LevisLibs
 
       def __parse_characters(**kw)
         str = ""
-        nil while (__read_escape(str, **kw) || __read_characters(str, **kw))
+        nil while __read_characters(str, **kw) || __read_escape(str, **kw)
         str
       end
 
-      def __read_characters(str, **kw)
+      def __read_characters(str, **_kw)
         any = false
         start = @idx
         while true
-          break if !__match!(-> (c) { ("\x20".."\xf4\x8f\xbf\xbf") === c && !(c == "\"" || c == "\\") })
+          break if !__match!(->(c) { c != "\"" && c != "\\" })
+
           any = true
         end
 
@@ -238,7 +268,7 @@ module LevisLibs
       def __read_escape(str, **kw)
         __match!("\\") &&
           (__expect_any!("\"", "\\", "/", "b", "f", "n", "r", "t", "u") &&
-            case __peek_prev
+            case @str[@idx - 1] # __peek_prev
             when "\""
               str << "\""
             when "\\"
@@ -262,9 +292,7 @@ module LevisLibs
 
       def __parse_elements(**kw)
         ary = [__parse_element(**kw)]
-        while __match!(",")
-          ary << __parse_element(**kw)
-        end
+        ary << __parse_element(**kw) while __match!(",")
 
         ary
       end
@@ -293,7 +321,7 @@ module LevisLibs
         key = __parse_string(**kw)
         __skip_ws
         __expect!(":")
-        (value = __parse_element(**kw))
+        value = __parse_element(**kw)
         [kw[:symbolize_keys] ? key.to_sym : key, value]
       end
 
@@ -315,6 +343,7 @@ module LevisLibs
 
         value_key = symbolize_keys ? :"@@jm:value" : "@@jm:value"
         return if !hsh.key?(value_key)
+
         value = hsh[value_key]
 
         klass.from_json(value)
@@ -322,12 +351,14 @@ module LevisLibs
 
       def __handle_parser_extensions(hsh, symbolize_keys: false, **kw)
         (if hsh.size == 1
-          __handle_symbol_extension(hsh, symbolize_keys: symbolize_keys, **kw)
-        elsif hsh.size == 2
-          __handle_object_extension(hsh, symbolize_keys: symbolize_keys, **kw)
-        end) ||
+           __handle_symbol_extension(hsh, symbolize_keys: symbolize_keys, **kw)
+         elsif hsh.size == 2
+           __handle_object_extension(hsh, symbolize_keys: symbolize_keys, **kw)
+         end) ||
           hsh
       end
+
+      alias_method :parse, :__parse_element
     end
 
     class JSONKeyError < StandardError
@@ -365,11 +396,18 @@ module LevisLibs
         **kw
       )
         raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? { String === _1 || Symbol === _1 }
+        space_in_empty &&= !minify
 
-        return "{#{space_in_empty && !minify ? " " : ""}}" if self.length == 0
+        return "{#{space_in_empty ? " " : ""}}" if self.length == 0
 
         space = minify ? "" : " "
-        pairs = self.map { |k, v| "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty, **kw)}" }
+        pairs = self.map { |k, v|
+          "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1,
+                                                               indent_size: indent_size,
+                                                               minify: minify,
+                                                               space_in_empty: space_in_empty,
+                                                               **kw)}"
+        }
 
         if minify
           "{#{pairs.join(",")}}"
@@ -389,10 +427,17 @@ module LevisLibs
         space_in_empty: true,
         **kw
       )
-        return "[#{space_in_empty && !minify ? " " : ""}]" if self.length == 0
+        space_in_empty &&= !minify
 
-        space = minify ? "" : " "
-        values = self.map { |v| "#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty, **kw)}" }
+        return "[#{space_in_empty ? " " : ""}]" if self.length == 0
+
+        values = self.map { |v|
+          v.to_json(indent_depth: indent_depth + 1,
+                    indent_size: indent_size,
+                    minify: minify,
+                    space_in_empty: space_in_empty,
+                    **kw)
+        }
 
         if minify
           "[#{values.join(",")}]"
@@ -451,7 +496,7 @@ module LevisLibs
         **kw
       )
         if extensions
-          {:"@@jm:symbol" => self.to_s}.to_json(**kw, minify: true)
+          { "@@jm:symbol": self.to_s }.to_json(**kw, minify: true)
         else
           self.to_s.inspect
         end
@@ -463,7 +508,8 @@ module LevisLibs
         value: nil,
         **kw
       )
-        if self.class.instance_method(__method__).owner == Object
+        # the self is here for me to keep my sanity
+        if self.method(__method__).owner == Object
           raise JSONUnsupportedType, "Object of class #{self.class.name} cannot be serialized to JSON"
         end
 
