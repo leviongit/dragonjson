@@ -286,7 +286,13 @@ module LevisLibs
             when "t"
               str << "\t"
             when "u"
-              raise(NotImplementedError, "unicode escapes not yet implemented")
+              if !$__ll_json_move_fast_and_break_things
+                raise(NotImplementedError, "unicode escapes not yet implemented")
+              else
+                acc = ""
+                4.times { acc << __expect!(->(c) { IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c }) } # could be done better, i'm tired
+                str << acc.to_i(16)
+              end
             end)
       end
 
@@ -489,43 +495,56 @@ module LevisLibs
       def to_json(
         **_kw
        )
-        if $__ll_move_fast_and_break_things
+        if $__ll_json_move_fast_and_break_things
           return "\"\"" if self.length == 0
 
-          needs_escaping = -> (c) {
-            c == "\"" || c == "\\"
-          }
-          
-          is_not_printable = -> (c) {
-            ("\x00".."\x1f") === c
-          }
+          # needs_escaping = -> (c) { c == "\"" || c == "\\" }
+          # is_not_printable = -> (c) { ("\x00".."\x1f") === c }
           
           acc = "\""
           
-          begini = 0
-          endi = 0
+          bi = 0
+          ei = 0
           l = self.length
           
-          while endi < l
-            cc = self[endi]
-            needs_escaping_v = needs_escaping[cc]
-            is_not_printable_v = is_not_printable[cc]
-            (endi += 1; next) if !(needs_escaping_v || is_not_printable_v)
-            acc << self[begini...endi]
-            begini = endi
+          while ei < l
+            cc = self[ei]
+            needs_escaping_v = cc == "\"" || cc == "\\"
+            is_not_printable_v = ("\x00".."\x1f") === cc
+            (ei += 1; next) if !(needs_escaping_v || is_not_printable_v)
+            acc << self[bi...ei]
+            bi = ei
 
             if needs_escaping_v
-              endi += 1
+              bi += 1
+              ei += 1
               acc << "\\" << cc
               next
             end
 
             if is_not_printable_v
-              endi += 1
-              acc << "\\u" << cc.ord.to_s(16).rjust(4, "0")
+              co = cc.ord
+
+              bi += 1
+              ei += 1
+              if co == 8
+                acc << "\\b"
+              elsif co == 9
+                acc << "\\t"
+              elsif co == 10
+                acc << "\\n"
+              elsif co == 12
+                acc << "\\f"
+              elsif co == 13
+                acc << "\\r"
+              else
+                acc << "\\u" << cc.ord.to_s(16).rjust(4, "0")
+              end
               next
             end
           end
+
+          acc << self[bi...ei]
           
           acc << "\""
           acc
