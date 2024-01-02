@@ -520,8 +520,8 @@ module LevisLibs
             needs_escaping_v = cc == "\"" || cc == "\\"
             is_not_printable_v = ("\x00".."\x1f") === cc
             if !(needs_escaping_v || is_not_printable_v)
-              (ei += 1
-               next)
+              ei += 1
+              next
             end
             acc << self[bi...ei]
             bi = ei
