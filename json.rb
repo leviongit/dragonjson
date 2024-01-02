@@ -488,8 +488,50 @@ module LevisLibs
     class ::String
       def to_json(
         **_kw
-      )
-        self.inspect
+       )
+        if $__ll_move_fast_and_break_things
+          return "\"\"" if self.length == 0
+
+          needs_escaping = -> (c) {
+            c == "\"" || c == "\\"
+          }
+          
+          is_not_printable = -> (c) {
+            ("\x00".."\x1f") === c
+          }
+          
+          acc = "\""
+          
+          begini = 0
+          endi = 0
+          l = self.length
+          
+          while endi < l
+            cc = self[endi]
+            needs_escaping_v = needs_escaping[cc]
+            is_not_printable_v = is_not_printable[cc]
+            (endi += 1; next) if !(needs_escaping_v || is_not_printable_v)
+            acc << self[begini...endi]
+            begini = endi
+
+            if needs_escaping_v
+              endi += 1
+              acc << "\\" << cc
+              next
+            end
+
+            if is_not_printable_v
+              endi += 1
+              acc << "\\u" << cc.ord.to_s(16).rjust(4, "0")
+              next
+            end
+          end
+          
+          acc << "\""
+          acc
+        else
+          self.inspect
+        end
       end
     end
 
