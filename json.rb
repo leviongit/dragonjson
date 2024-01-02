@@ -85,7 +85,7 @@ module LevisLibs
 
       def __expect_any!(*cs)
         cs.any? { __match!(_1) } ||
-          raise(UnexpectedChar, "Expected any of #{cs.map { _1.inspect }.join(", ")}, but got #{__peek.inspect}")
+          raise(UnexpectedChar, "Expected any of #{cs.map { _1.inspect }.join(", ")}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
         @str[@idx - 1] # __peek_prev
       end
 
