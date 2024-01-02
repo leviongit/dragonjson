@@ -85,7 +85,9 @@ module LevisLibs
 
       def __expect_any!(*cs)
         cs.any? { __match!(_1) } ||
-          raise(UnexpectedChar, "Expected any of #{cs.map { _1.inspect }.join(", ")}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
+          raise(UnexpectedChar, "Expected any of #{cs.map {
+                                                     _1.inspect
+                                                   }.join(", ")}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
         @str[@idx - 1] # __peek_prev
       end
 
@@ -121,7 +123,6 @@ module LevisLibs
         __skip_ws
         v
       end
-
 
       def __parse_value(extensions: false, **kw)
         case __peek
@@ -288,11 +289,16 @@ module LevisLibs
             when "u"
               if !$__ll_json_move_fast_and_break_things
                 raise(NotImplementedError, "unicode escapes not yet implemented")
-              else
-                acc = ""
-                4.times { acc << __expect!(->(c) { IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c }) } # could be done better, i'm tired
-                str << acc.to_i(16)
               end
+
+              acc = ""
+              4.times {
+                acc << __expect!(->(c) {
+                                   IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
+                                 })
+              } # could be done better, i'm tired
+              str << acc.to_i(16)
+
             end)
       end
 
@@ -364,7 +370,7 @@ module LevisLibs
           hsh
       end
 
-      alias_method :parse, :__parse_element
+      alias parse __parse_element
     end
 
     class JSONKeyError < StandardError
@@ -404,7 +410,9 @@ module LevisLibs
         space_in_empty: true,
         **kw
       )
-        raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? { String === _1 || Symbol === _1 }
+        raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? {
+                                                                                      String === _1 || Symbol === _1
+                                                                                    }
 
         space_in_empty &&= !minify
 
@@ -494,24 +502,27 @@ module LevisLibs
     class ::String
       def to_json(
         **_kw
-       )
+      )
         if $__ll_json_move_fast_and_break_things
           return "\"\"" if self.length == 0
 
           # needs_escaping = -> (c) { c == "\"" || c == "\\" }
           # is_not_printable = -> (c) { ("\x00".."\x1f") === c }
-          
+
           acc = "\""
-          
+
           bi = 0
           ei = 0
           l = self.length
-          
+
           while ei < l
             cc = self[ei]
             needs_escaping_v = cc == "\"" || cc == "\\"
             is_not_printable_v = ("\x00".."\x1f") === cc
-            (ei += 1; next) if !(needs_escaping_v || is_not_printable_v)
+            if !(needs_escaping_v || is_not_printable_v)
+              (ei += 1
+               next)
+            end
             acc << self[bi...ei]
             bi = ei
 
@@ -522,30 +533,30 @@ module LevisLibs
               next
             end
 
-            if is_not_printable_v
-              co = cc.ord
+            next unless is_not_printable_v
 
-              bi += 1
-              ei += 1
-              if co == 8
-                acc << "\\b"
-              elsif co == 9
-                acc << "\\t"
-              elsif co == 10
-                acc << "\\n"
-              elsif co == 12
-                acc << "\\f"
-              elsif co == 13
-                acc << "\\r"
-              else
-                acc << "\\u" << cc.ord.to_s(16).rjust(4, "0")
-              end
-              next
+            co = cc.ord
+
+            bi += 1
+            ei += 1
+            if co == 8
+              acc << "\\b"
+            elsif co == 9
+              acc << "\\t"
+            elsif co == 10
+              acc << "\\n"
+            elsif co == 12
+              acc << "\\f"
+            elsif co == 13
+              acc << "\\r"
+            else
+              acc << "\\u" << cc.ord.to_s(16).rjust(4, "0")
             end
+            next
           end
 
           acc << self[bi...ei]
-          
+
           acc << "\""
           acc
         else
