@@ -17,80 +17,6 @@ module LevisLibs
         @idx = 0
         @col = 1
         @ln = 1
-        parse_number_lam = ->(**kw) { __parse_number(**kw) }
-        # ew
-        @value_parse_dt = {
-          "{" => ->(extensions: false, **kw) {
-                   __advance
-                   __skip_ws
-                   return {} if __match!("}")
-
-                   hsh = __parse_members(extensions: extensions, **kw)
-                   __expect!("}")
-
-                   if extensions
-                     hsh = __handle_parser_extensions(hsh, symbolize_keys: kw[:symbolize_keys],
-                                                           **kw)
-                   end
-
-                   hsh
-                 },
-          "[" => ->(extensions: false, **kw) {
-                   __advance
-                   __skip_ws
-                   return [] if __match!("]")
-
-                   ary = __parse_elements(extensions: extensions, **kw)
-                   __expect!("]")
-                   ary
-                 },
-          "\"" => ->(**kw) { __parse_string(**kw) },
-          "-" => parse_number_lam,
-          "0" => parse_number_lam,
-          "1" => parse_number_lam,
-          "2" => parse_number_lam,
-          "3" => parse_number_lam,
-          "4" => parse_number_lam,
-          "5" => parse_number_lam,
-          "6" => parse_number_lam,
-          "7" => parse_number_lam,
-          "8" => parse_number_lam,
-          "9" => parse_number_lam,
-          "t" => ->(**_kw) {
-                   __string("true")
-                   true
-                 },
-          "f" => ->(**_kw) {
-                   __string("false")
-                   false
-                 },
-          "n" => ->(**_kw) {
-                   __string("null")
-                   nil
-                 }
-        }
-
-        @char_esc_parse_dt = {
-          "\"" => -> { "\"" },
-          "\\" => -> { "\\" },
-          "/" => -> { "/" },
-          "b" => -> { "\b" },
-          "f" => -> { "\f" },
-          "n" => -> { "\n" },
-          "r" => -> { "\r" },
-          "t" => -> { "\t" },
-          "u" => -> {
-                   si = @idx
-                   i = 0
-                   while i < 4
-                     __expect!(->(c) {
-                       ("0".."9") === c || ("a".."f") === c || ("A".."F") === c
-                     })
-                     i += 1
-                   end
-                   @str[si, 4].to_i(16)
-                 }
-        }
       end
 
       def __advance
@@ -199,48 +125,41 @@ module LevisLibs
       end
 
       def __parse_value(extensions: false, **kw)
-        if $__ll_json_move_fast_and_break_things
-          cc = @str[@idx]
-          raise UnexpectedChar, "Unexpected char '#{cc}' at [#{@ln}:#{@col}]" unless @value_parse_dt.key?(cc)
+        case __peek
+        when "{"
+          __advance
+          __skip_ws
+          return {} if __match!("}")
 
-          @value_parse_dt[cc][]
+          hsh = __parse_members(extensions: extensions, **kw)
+          __expect!("}")
+
+          hsh = __handle_parser_extensions(hsh, symbolize_keys: kw[:symbolize_keys], **kw) if extensions
+
+          hsh
+        when "["
+          __advance
+          __skip_ws
+          return [] if __match!("]")
+
+          ary = __parse_elements(extensions: extensions, **kw)
+          __expect!("]")
+          ary
+        when "\""
+          __parse_string(**kw)
+        when "-", "0".."9"
+          __parse_number(**kw)
+        when "t"
+          __string("true")
+          true
+        when "f"
+          __string("false")
+          false
+        when "n"
+          __string("null")
+          nil
         else
-          case __peek
-          when "{"
-            __advance
-            __skip_ws
-            return {} if __match!("}")
-
-            hsh = __parse_members(extensions: extensions, **kw)
-            __expect!("}")
-
-            hsh = __handle_parser_extensions(hsh, symbolize_keys: kw[:symbolize_keys], **kw) if extensions
-
-            hsh
-          when "["
-            __advance
-            __skip_ws
-            return [] if __match!("]")
-
-            ary = __parse_elements(extensions: extensions, **kw)
-            __expect!("]")
-            ary
-          when "\""
-            __parse_string(**kw)
-          when "-", "0".."9"
-            __parse_number(**kw)
-          when "t"
-            __string("true")
-            true
-          when "f"
-            __string("false")
-            false
-          when "n"
-            __string("null")
-            nil
-          else
-            raise UnexpectedChar, "Unexpected char '#{__peek}' at [#{@ln}:#{@col}]"
-          end
+          raise UnexpectedChar, "Unexpected char '#{__peek}' at [#{@ln}:#{@col}]"
         end
       end
 
@@ -348,50 +267,39 @@ module LevisLibs
       end
 
       def __read_escape(str, **_kw)
-        if $__ll_json_move_fast_and_break_things
-          return if !__match!("\\")
+        __match!("\\") &&
+          (__expect_any!("\"", "\\", "/", "b", "f", "n", "r", "t", "u") &&
+            case @str[@idx - 1] # __peek_prev
+            when "\""
+              str << "\""
+            when "\\"
+              str << "\\"
+            when "/"
+              str << "/"
+            when "b"
+              str << "\b"
+            when "f"
+              str << "\f"
+            when "n"
+              str << "\n"
+            when "r"
+              str << "\r"
+            when "t"
+              str << "\t"
+            when "u"
+              if !$__ll_json_move_fast_and_break_things
+                raise(NotImplementedError, "unicode escapes not yet implemented")
+              end
 
-          cc = __advance
-          str << (@char_esc_parse_dt[cc] ||
-                      raise(UnexpectedChar,
-                            "Expected any of \"\\\"\", \"\\\\\", \"/\", \"b\", \"f\", \"n\", \"r\", \"t\", or \"u\"\
-                              , but got #{cc.inspect} at #{@idx - 1}, [#{@ln}:#{@col - 1}]"))[]
+              acc = ""
+              4.times {
+                acc << __expect!(->(c) {
+                                   IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
+                                 })
+              } # could be done better, i'm tired
+              str << acc.to_i(16)
 
-        else
-          __match!("\\") &&
-            (__expect_any!("\"", "\\", "/", "b", "f", "n", "r", "t", "u") &&
-              case @str[@idx - 1] # __peek_prev
-              when "\""
-                str << "\""
-              when "\\"
-                str << "\\"
-              when "/"
-                str << "/"
-              when "b"
-                str << "\b"
-              when "f"
-                str << "\f"
-              when "n"
-                str << "\n"
-              when "r"
-                str << "\r"
-              when "t"
-                str << "\t"
-              when "u"
-                if !$__ll_json_move_fast_and_break_things
-                  raise(NotImplementedError, "unicode escapes not yet implemented")
-                end
-
-                acc = ""
-                4.times {
-                  acc << __expect!(->(c) {
-                                     IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
-                                   })
-                } # could be done better, i'm tired
-                str << acc.to_i(16)
-
-              end)
-        end
+            end)
       end
 
       def __parse_elements(**kw)
