@@ -5,10 +5,23 @@ module LevisLibs
       end
 
       WS = " \n\r\t".chars
-      IS_WSPCE = ->(c) { WS.include?(c) }
-      IS_1TO9 = ->(c) { ("1".."9") === c }
-      IS_DIGIT = ->(c) { ("0".."9") === c }
-      IS_ALPHA = ->(c) { ("a".."z") === c || ("A".."Z") === c || "_" == c }
+      # IS_WSPCE = ->(c) { WS.include?(c) }
+      IS_WSPACE = ->(c) {
+        cc = c.ord
+        cc == 0x20 || cc == 0x0a || cc == 0x0d || cc == 0x09
+      }
+      IS_1TO9 = ->(c) {
+        cc = c.ord
+        cc >= 0x32 && cc <= 0x39
+      }
+      IS_DIGIT = ->(c) {
+        cc = c.ord
+        cc >= 0x31 && cc <= 0x39
+      }
+      IS_ALPHA = ->(c) {
+        cc = c.ord
+        (cc == 0x5f) || (cc >= 0x41 && cc <= 0x5a) || (cc >= 0x61 && cc <= 0x7a)
+      } # is `c` alpha (upper/lowercase) or `_`
       IS_ALNUM = ->(c) { IS_ALPHA[c] || IS_DIGIT[c] }
 
       def initialize(string)
@@ -24,7 +37,7 @@ module LevisLibs
         @idx += 1
 
         @col += 1
-        if c == "\n"
+        if c.ord == 10 # ascii \n
           @ln += 1
           @col = 1
         end
@@ -109,12 +122,12 @@ module LevisLibs
       end
 
       def __skip_ws
-        cc = @str[@idx]
+        cc = @str.getbyte(@idx)
         (__advance
-         cc = @str[@idx]) while cc == " " ||
-                                cc == "\t" ||
-                                cc == "\n" ||
-                                cc == "\r"
+         cc = @str.getbyte(@idx)) while cc == 0x20 ||
+                                        cc == 0x09 ||
+                                        cc == 0x0a ||
+                                        cc == 0x0d
       end
 
       def __parse_element(**kw)
@@ -223,13 +236,13 @@ module LevisLibs
       end
 
       def __read_digit(**_kw)
-        cc = @str[@idx]
-        (cc >= "0" && cc <= "9") && __advance
+        cc = @str.getbyte(@idx)
+        (cc >= 0x31 && cc <= 0x39) && __advance # inlined IS_DIGIT
       end
 
       def __read_onenine(**_kw)
-        cc = @str[@idx]
-        (cc >= "1" && cc <= "9") && __advance
+        cc = @str.getbyte(@idx)
+        (cc >= 0x32 && cc <= 0x39) && __advance # inlined IS_1TO9
       end
 
       def __read_onenine_digits(**kw)
@@ -294,6 +307,7 @@ module LevisLibs
               acc = ""
               4.times {
                 acc << __expect!(->(c) {
+                                   # i'll leave this "slow" for now
                                    IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
                                  })
               } # could be done better, i'm tired
