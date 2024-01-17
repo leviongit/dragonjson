@@ -12,11 +12,11 @@ module LevisLibs
       }
       IS_1TO9 = ->(c) {
         cc = c.ord
-        cc >= 0x32 && cc <= 0x39
+        cc >= 0x31 && cc <= 0x39
       }
       IS_DIGIT = ->(c) {
         cc = c.ord
-        cc >= 0x31 && cc <= 0x39
+        cc >= 0x30 && cc <= 0x39
       }
       IS_ALPHA = ->(c) {
         cc = c.ord
@@ -237,12 +237,12 @@ module LevisLibs
 
       def __read_digit(**_kw)
         cc = @str.getbyte(@idx)
-        (cc >= 0x31 && cc <= 0x39) && __advance # inlined IS_DIGIT
+        (cc >= 0x30 && cc <= 0x39) && __advance # inlined IS_DIGIT
       end
 
       def __read_onenine(**_kw)
         cc = @str.getbyte(@idx)
-        (cc >= 0x32 && cc <= 0x39) && __advance # inlined IS_1TO9
+        (cc >= 0x31 && cc <= 0x39) && __advance # inlined IS_1TO9
       end
 
       def __read_onenine_digits(**kw)
