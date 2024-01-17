@@ -21,7 +21,8 @@ module LevisLibs
         # ew
         @value_parse_dt = {
           "{" => ->(extensions: false, **kw) {
-                   __advance __skip_ws
+                   __advance
+                   __skip_ws
                    return {} if __match!("}")
 
                    hsh = __parse_members(extensions: extensions, **kw)
