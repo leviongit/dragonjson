@@ -530,13 +530,11 @@ module LevisLibs
           l = self.length
 
           while ei < l
-            cc = self[ei]
-            needs_escaping_v = cc == "\"" || cc == "\\"
-            is_not_printable_v = ("\x00".."\x1f") === cc
-            if !(needs_escaping_v || is_not_printable_v)
-              ei += 1
-              next
-            end
+            cc = getbyte(ei)
+            needs_escaping_v = cc == 0x22 || cc == 0x5c
+            is_not_printable_v = cc < 0x20 || cc > 0x7f
+            next ei += 1 unless needs_escaping_v || is_not_printable_v
+
             acc << self[bi...ei]
             bi = ei
 
@@ -549,22 +547,20 @@ module LevisLibs
 
             next unless is_not_printable_v
 
-            co = cc.ord
-
             bi += 1
             ei += 1
-            if co == 8
+            if cc == 8
               acc << "\\b"
-            elsif co == 9
+            elsif cc == 9
               acc << "\\t"
-            elsif co == 10
+            elsif cc == 10
               acc << "\\n"
-            elsif co == 12
+            elsif cc == 12
               acc << "\\f"
-            elsif co == 13
+            elsif cc == 13
               acc << "\\r"
             else
-              acc << "\\u" << cc.ord.to_s(16).rjust(4, "0")
+              acc << "\\u" << cc.to_s(16).rjust(4, "0")
             end
             next
           end
