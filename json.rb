@@ -4,45 +4,99 @@ module LevisLibs
       class UnexpectedChar < StandardError
       end
 
-      WS = " \n\r\t".chars
-      # IS_WSPCE = ->(c) { WS.include?(c) }
-      IS_WSPACE = ->(c) {
-        cc = c.ord
-        cc == 0x20 || cc == 0x0a || cc == 0x0d || cc == 0x09
-      }
-      IS_1TO9 = ->(c) {
-        cc = c.ord
-        cc >= 0x31 && cc <= 0x39
-      }
-      IS_DIGIT = ->(c) {
-        cc = c.ord
-        cc >= 0x30 && cc <= 0x39
-      }
-      IS_ALPHA = ->(c) {
-        cc = c.ord
-        (cc == 0x5f) || (cc >= 0x41 && cc <= 0x5a) || (cc >= 0x61 && cc <= 0x7a)
-      } # is `c` alpha (upper/lowercase) or `_`
-      IS_ALNUM = ->(c) { IS_ALPHA[c] || IS_DIGIT[c] }
+      MAGIC_DISPATCH_TABLE = ([->(sself) {
+                                 sself.__raise_unexpected
+                               }] * 256).tap { |t|
+        t[0x22] = ->(sself) {
+          sself.__parse_string
+        } # "\""
+        read_num = ->(sself) {
+          sself.__parse_number
+        }
+        t[0x2d] = read_num # "-"
+        t[0x30] = read_num # "0"
+        t[0x31] = read_num # "1"
+        t[0x32] = read_num # "2"
+        t[0x33] = read_num # "3"
+        t[0x34] = read_num # "4"
+        t[0x35] = read_num # "5"
+        t[0x36] = read_num # "6"
+        t[0x37] = read_num # "7"
+        t[0x38] = read_num # "8"
+        t[0x39] = read_num # "9"
+        t[0x5b] = ->(sself) {
+          sself.__advance
+          sself.__skip_ws
+          return [] if sself.__match!("]")
 
-      def initialize(string)
+          ary = sself.__parse_elements
+          sself.__expect!("]")
+          ary
+        } # "["
+        t[0x66] = ->(sself) {
+          sself.__string("false")
+          false
+        } # "f"
+        t[0x6e] = ->(sself) {
+          sself.__string("null")
+          nil
+        } # "n"
+        t[0x74] = ->(sself) {
+          sself.__string("true")
+          true
+        } # "t"
+        t[0x7b] = ->(sself) {
+          sself.__advance
+          sself.__skip_ws
+          return {} if sself.__match!("}")
+
+          hsh = sself.__parse_members
+          sself.__expect!("}")
+
+          hsh = sself.__handle_parser_extensions(hsh)
+
+          hsh
+        } # "{"
+      }.freeze
+
+      def initialize(string, **kw)
         @len = string.size
         @str = string
         @idx = 0
         @col = 1
         @ln = 1
+        @mct = MAGIC_DISPATCH_TABLE
+        @kw = kw
+      end
+
+      def __raise_unexpected(_c = nil)
+        raise UnexpectedChar, "Unexpected char '#{__peek}' at [#{@ln}:#{@col}]"
       end
 
       def __advance
         c = @str[@idx]
         @idx += 1
 
-        @col += 1
         if c.ord == 10 # ascii \n
           @ln += 1
           @col = 1
+        else
+          @col += 1
         end
 
         c
+      end
+
+      def __advance_
+        c = @str.getbyte(@idx)
+        @idx += 1
+
+        if c == 10
+          @ln += 1
+          @col = 1
+        else
+          @col += 1
+        end
       end
 
       def __peek
@@ -54,39 +108,41 @@ module LevisLibs
       end
 
       def __match!(c)
-        if String === c
-          if @str[@idx] == c # __peek
-            __advance
-            return true
-          end
-        elsif Proc === c
-          if c[@str[@idx]] # __peek
-            __advance
-            return true
-          end
+        if @str.getbyte(@idx) == c = c.ord # __peek
+          @idx += 1
+
+          return (if c == 10
+                    @ln += 1
+                    @col = 1
+                  else
+                    @col += 1
+                  end)
         end
 
         return false
       end
 
-      def __match_any!(*cs)
-        # cs.any? { __match!(_1) }
-        cl = cs.length
-        i = 0
-        while cl > i
-          if String === c
-            if @str[@idx] == c # __peek
-              __advance
-              return true
-            end
-          elsif Proc === c
-            if c[@str[@idx]] # __peek
-              __advance
-              return true
-            end
-          end
-          i += 1
+      def __matchb!(b)
+        if @str.getbyte(@idx) == b
+          @idx += 1
+
+          @col += 1
+          return true unless b == 10
+
+          @ln += 1
+          @col = 1
+          return true
         end
+
+        return false
+      end
+
+      def __matchp!(p)
+        if p[@str.getbyte(@idx)]
+          __advance_
+          return true
+        end
+
         return false
       end
 
@@ -94,6 +150,23 @@ module LevisLibs
         __match!(c) || raise(UnexpectedChar,
                              "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
         @str[@idx - 1] # __peek_prev
+      end
+
+      def __expectb_!(b)
+        if @str.getbyte(@idx) == b
+          @idx += 1
+
+          if b == 10
+
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+        else
+          raise(UnexpectedChar,
+                "Expected #{c.chr}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
+        end
       end
 
       def __expect_any!(*cs)
@@ -105,78 +178,74 @@ module LevisLibs
       end
 
       def __string(str)
-        # last = ""
-        # str.chars.all? {
-        #   last = _1
-        #   __match!(_1)
-        # } ||
-        #   raise(UnexpectedChar, "Expected '#{last}', got '#{__peek}' (in \"#{str}\" literal)")
         sl = str.length
         i = 0
         while sl > i
-          raise(UnexpectedChar, "Expected '#{str[i]}', got '#{__peek}' (in \"#{str}\" literal)") if @str[@idx] != str[i]
+          if @str.getbyte(@idx) != str.getbyte(i)
+            raise(UnexpectedChar,
+                  "Expected '#{str[i]}', got '#{__peek}' (in \"#{str}\" literal)")
+          end
 
-          __advance
+          __advance_
           i += 1
         end
       end
 
       def __skip_ws
         cc = @str.getbyte(@idx)
-        (__advance
-         cc = @str.getbyte(@idx)) while cc == 0x20 ||
-                                        cc == 0x09 ||
-                                        cc == 0x0a ||
-                                        cc == 0x0d
-      end
+        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
+          @idx += 1
 
-      def __parse_element(**kw)
-        __skip_ws
-        v = __parse_value(**kw)
-        __skip_ws
-        v
-      end
+          if cc == 10 # ascii \n
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
 
-      def __parse_value(extensions: false, **kw)
-        case __peek
-        when "{"
-          __advance
-          __skip_ws
-          return {} if __match!("}")
-
-          hsh = __parse_members(extensions: extensions, **kw)
-          __expect!("}")
-
-          hsh = __handle_parser_extensions(hsh, symbolize_keys: kw[:symbolize_keys], **kw) if extensions
-
-          hsh
-        when "["
-          __advance
-          __skip_ws
-          return [] if __match!("]")
-
-          ary = __parse_elements(extensions: extensions, **kw)
-          __expect!("]")
-          ary
-        when "\""
-          __parse_string(**kw)
-        when "-", "0".."9"
-          __parse_number(**kw)
-        when "t"
-          __string("true")
-          true
-        when "f"
-          __string("false")
-          false
-        when "n"
-          __string("null")
-          nil
-        else
-          raise UnexpectedChar, "Unexpected char '#{__peek}' at [#{@ln}:#{@col}]"
+          cc = @str.getbyte(@idx)
         end
       end
 
-      def __parse_number(**_kw)
+      def __parse_element
+        cc = @str.getbyte(@idx)
+        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
+          @idx += 1
+
+          if cc == 10 # ascii \n
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+
+          cc = @str.getbyte(@idx)
+        end
+
+        v = @mct[@str.getbyte(@idx)][self]
+
+        cc = @str.getbyte(@idx)
+        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
+          @idx += 1
+
+          if cc == 10 # ascii \n
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+
+          cc = @str.getbyte(@idx)
+        end
+
+        v
+      end
+
+      def __parse_value
+        @mct[@str.getbyte(@idx)][self]
+      end
+
+      def __parse_number
         start = @idx
         __read_integer || raise(
           UnexpectedChar,
@@ -203,84 +272,90 @@ module LevisLibs
         end
       end
 
-      def __read_unsigned_integer(**_kw)
+      def __read_unsigned_integer
         __read_onenine_digits || __read_digit
       end
 
-      def __read_integer(**_kw)
-        __read_unsigned_integer || (__match!("-") && __read_unsigned_integer)
+      def __read_integer
+        __read_unsigned_integer || (__matchb!(0x2d) && __read_unsigned_integer)
       end
 
-      def __read_frac(**kw)
-        if __match!(".")
-          __read_some_digits(**kw)
+      def __read_frac
+        if __matchb!(0x2e)
+          __read_some_digits
         else
           true
         end
       end
 
-      def __read_exp(**kw)
-        cc = @str[@idx]
-        if cc == "e" || cc == "E"
-          __advance
-          __read_sign(**kw) && __read_some_digits(**kw)
+      def __read_exp
+        cc = @str.getbyte(@idx)
+        if cc == 0x65 || cc == 0x45
+          @idx += 1 # inline __advance
+          @col += 1
+          __read_sign
+          __read_some_digits
         else
           true
         end
       end
 
-      def __read_sign(**_kw)
-        cc = @str[@idx]
-        __advance if cc == "+" || cc == "-"
+      def __read_sign
+        cc = @str.getbyte(@idx)
+        return unless cc == 0x2b || cc == 0x2d
+
+        @idx += 1
+        @col += 1
+        # inline __advance
+      end
+
+      def __read_digit
+        cc = @str.getbyte(@idx)
+        (cc >= 0x30 && cc <= 0x39) && (@idx += 1
+                                       @col += 1) # inlined IS_DIGIT & __advance
+      end
+
+      def __read_onenine
+        cc = @str.getbyte(@idx)
+        (cc >= 0x31 && cc <= 0x39) && (@idx += 1
+                                       @col += 1) # inlined IS_1TO9 & __advance
+      end
+
+      def __read_onenine_digits
+        __read_onenine && __read_many_digits
+      end
+
+      def __read_many_digits
+        next while __read_digit
         true
       end
 
-      def __read_digit(**_kw)
-        cc = @str.getbyte(@idx)
-        (cc >= 0x30 && cc <= 0x39) && __advance # inlined IS_DIGIT
+      def __read_some_digits
+        bi = @idx
+        next while (
+          cc = @str.getbyte(@idx)
+          (cc >= 0x30 && cc <= 0x39) && (@idx += 1
+                                         @col += 1) # inlined IS_DIGIT & __advance
+        )
+        @idx == bi ? false : true
       end
 
-      def __read_onenine(**_kw)
-        cc = @str.getbyte(@idx)
-        (cc >= 0x31 && cc <= 0x39) && __advance # inlined IS_1TO9
-      end
-
-      def __read_onenine_digits(**kw)
-        __read_onenine(**kw) && __read_many_digits(**kw)
-      end
-
-      def __read_many_digits(**kw)
-        next while __read_digit(**kw)
-        true
-      end
-
-      def __read_some_digits(**kw)
-        any = false
-        any = true while __read_digit(**kw)
-        any
-      end
-
-      def __parse_characters(**kw)
+      def __parse_characters
         str = ""
-        nil while __read_characters(str, **kw) || __read_escape(str, **kw)
+        next while __read_characters(str) || __read_escape(str)
         str
       end
 
-      def __read_characters(str, **_kw)
-        any = false
+      def __read_characters(str)
         start = @idx
-        while true
-          break if !__match!(->(c) { c != "\"" && c != "\\" })
+        next while __matchp!(->(c) { c == 0x5c || c == 0x22 ? false : true })
 
-          any = true
-        end
-
-        str << @str[start..@idx - 1]
-        any
+        str << @str[start...@idx]
+        start == @idx ? false : true
       end
 
-      def __read_escape(str, **_kw)
-        __match!("\\") &&
+      def __read_escape(str)
+        __matchb!(0x5c) &&
           (__expect_any!("\"", "\\", "/", "b", "f", "n", "r", "t", "u") &&
             case @str[@idx - 1] # __peek_prev
             when "\""
@@ -300,7 +375,7 @@ module LevisLibs
             when "t"
               str << "\t"
             when "u"
-              if !$__ll_json_move_fast_and_break_things
+              unless $__ll_json_move_fast_and_break_things
                 raise(NotImplementedError, "unicode escapes not yet implemented")
               end
 
@@ -316,46 +391,103 @@ module LevisLibs
             end)
       end
 
-      def __parse_elements(**kw)
-        ary = [__parse_element(**kw)]
-        ary << __parse_element(**kw) while __match!(",")
+      def __parse_elements
+        ary = [__parse_element]
+        ary << __parse_element while __matchb!(0x2c)
 
         ary
       end
 
-      def __parse_string(**kw)
-        __expect!("\"")
-        str = __parse_characters(**kw)
-        __expect!("\"")
+      def __parse_string
+        __expectb_!(0x22)
+        str = __parse_characters
+        __expectb_!(0x22)
         str
       end
 
-      def __parse_members(**kw)
+      def __parse_members
         hsh = {}
-        key, value = __parse_member(**kw)
+        key, value = __parse_member
         hsh[key] = value
-        while __match!(",")
-          key, value = __parse_member(**kw)
+        while __matchb!(0x2c)
+          key, value = __parse_member
           hsh[key] = value
         end
 
         hsh
       end
 
-      def __parse_member(**kw)
-        __skip_ws
-        key = __parse_string(**kw)
-        __skip_ws
-        __expect!(":")
-        value = __parse_element(**kw)
-        [kw[:symbolize_keys] ? key.to_sym : key, value]
+      def __parse_member
+        cc = @str.getbyte(@idx)
+        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
+          @idx += 1
+
+          if cc == 10 # ascii \n
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+
+          cc = @str.getbyte(@idx)
+        end
+
+        key = __parse_string
+
+        cc = @str.getbyte(@idx)
+        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
+          @idx += 1
+
+          if cc == 10 # ascii \n
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+
+          cc = @str.getbyte(@idx)
+        end
+
+        __expectb_!(0x3a)
+
+        cc = @str.getbyte(@idx)
+        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
+          @idx += 1
+
+          if cc == 10 # ascii \n
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+
+          cc = @str.getbyte(@idx)
+        end
+        value = @mct[@str.getbyte(@idx)][self]
+
+        cc = @str.getbyte(@idx)
+        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
+          @idx += 1
+
+          if cc == 10 # ascii \n
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+
+          cc = @str.getbyte(@idx)
+        end
+
+        [@kw[:symbolize_keys] ? key.to_sym : key, value]
       end
 
-      def __handle_symbol_extension(hsh, symbolize_keys: false, **_kw)
-        hsh[symbolize_keys ? :"@@jm:symbol" : "@@jm:symbol"]&.to_sym
+      def __handle_symbol_extension(hsh)
+        hsh[@kw[:symbolize_keys] ? :"@@jm:symbol" : "@@jm:symbol"]&.to_sym
       end
 
-      def __handle_object_extension(hsh, symbolize_keys: false, **_kw)
+      def __handle_object_extension(hsh)
+        symbolize_keys = @kw[:symbolize_keys]
         class_key = symbolize_keys ? :"@@jm:class" : "@@jm:class"
 
         classname = hsh[class_key]
@@ -375,11 +507,13 @@ module LevisLibs
         klass.from_json(value)
       end
 
-      def __handle_parser_extensions(hsh, symbolize_keys: false, **kw)
+      def __handle_parser_extensions(hsh)
+        return hsh unless @kw[:extensions]
+
         (if hsh.size == 1
-           __handle_symbol_extension(hsh, symbolize_keys: symbolize_keys, **kw)
+           __handle_symbol_extension(hsh)
          elsif hsh.size == 2
-           __handle_object_extension(hsh, symbolize_keys: symbolize_keys, **kw)
+           __handle_object_extension(hsh)
          end) ||
           hsh
       end
@@ -412,7 +546,7 @@ module LevisLibs
         string,
         **kw
       )
-        JSONParser.new(string).parse(**kw)
+        JSONParser.new(string, **kw).parse
       end
     end
 
