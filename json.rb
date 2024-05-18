@@ -4,6 +4,11 @@ module LevisLibs
       class UnexpectedChar < StandardError
       end
 
+
+      @str_false = "false".freeze
+      @str_true = "true".freeze
+      @str_null = "null".freeze
+      
       MAGIC_DISPATCH_TABLE = ([->(sself) {
                                  sself.__raise_unexpected
                                }] * 256).tap { |t|
@@ -25,38 +30,65 @@ module LevisLibs
         t[0x38] = read_num # "8"
         t[0x39] = read_num # "9"
         t[0x5b] = ->(sself) {
-          sself.__advance
+          sself.__advance_not_nl
           sself.__skip_ws
-          return [] if sself.__match!("]")
+          return [] if sself.__matchb!(0x5d)
 
           ary = sself.__parse_elements
-          sself.__expect!("]")
+          sself.__expectb_!(0x5d)
           ary
         } # "["
         t[0x66] = ->(sself) {
-          sself.__string("false")
+          sself.__string(@str_false)
           false
         } # "f"
         t[0x6e] = ->(sself) {
-          sself.__string("null")
+          sself.__string(@str_null)
           nil
         } # "n"
         t[0x74] = ->(sself) {
-          sself.__string("true")
+          sself.__string(@str_true)
           true
         } # "t"
         t[0x7b] = ->(sself) {
-          sself.__advance
+          sself.__advance_not_nl
           sself.__skip_ws
-          return {} if sself.__match!("}")
-
+          return {} if sself.__matchb!(0x7d)
+          
           hsh = sself.__parse_members
-          sself.__expect!("}")
+          sself.__expectb_!(0x7d)
 
           hsh = sself.__handle_parser_extensions(hsh)
 
           hsh
         } # "{"
+      }.freeze
+
+      MAGIC_ESCAPE_DISPATCH_TABLE = ([-> sself, str { str << __advance }] * 256).tap { |t|
+        t[0x22] = -> sself, str { str << 0x22; sself.__advance_not_nl }
+        t[0x2f] = -> sself, str { str << 0x2f; sself.__advance_not_nl }
+        t[0x5c] = -> sself, str { str << 0x5c; sself.__advance_not_nl }
+        t[0x62] = -> sself, str { str << 0x08; sself.__advance_not_nl }
+        t[0x66] = -> sself, str { str << 0x0c; sself.__advance_not_nl }
+        t[0x6e] = -> sself, str { str << 0x0a; sself.__advance_not_nl }
+        t[0x72] = -> sself, str { str << 0x0d; sself.__advance_not_nl }
+        t[0x74] = -> sself, str { str << 0x09; sself.__advance_not_nl }
+        t[0x75] = -> sself, str { 
+              unless $__ll_json_move_fast_and_break_things
+                raise(NotImplementedError, "unicode escapes not yet implemented")
+              end
+
+          sself.__advance_not_nl
+          
+              acc = ""
+              4.times {
+                acc << sself.__expect!(->(c) {
+                                   # i'll leave this "slow" for now
+                                   IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
+                                 })
+              } # could be done better, i'm tired
+              str << acc.to_i(16)
+        }
       }.freeze
 
       def initialize(string, **kw)
@@ -66,6 +98,7 @@ module LevisLibs
         @col = 1
         @ln = 1
         @mct = MAGIC_DISPATCH_TABLE
+        @medt = MAGIC_ESCAPE_DISPATCH_TABLE
         @kw = kw
       end
 
@@ -99,6 +132,11 @@ module LevisLibs
         end
       end
 
+      def __advance_not_nl
+        @idx += 1
+        @col += 1
+      end
+      
       def __peek
         @str[@idx]
       end
@@ -165,7 +203,7 @@ module LevisLibs
           end
         else
           raise(UnexpectedChar,
-                "Expected #{c.chr}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
+                "Expected #{b.chr}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
         end
       end
 
@@ -186,7 +224,7 @@ module LevisLibs
                   "Expected '#{str[i]}', got '#{__peek}' (in \"#{str}\" literal)")
           end
 
-          __advance_
+          __advance_not_nl
           i += 1
         end
       end
@@ -266,9 +304,9 @@ module LevisLibs
         nend = @idx
 
         if iend == nend
-          @str[start..@idx].to_i
+          @str[start..nend].to_i
         else
-          @str[start..@idx].to_f
+          @str[start..nend].to_f
         end
       end
 
@@ -337,7 +375,7 @@ module LevisLibs
           (cc >= 0x30 && cc <= 0x39) && (@idx += 1
                                          @col += 1) # inlined IS_DIGIT & __advance
         )
-        @idx == bi ? false : true
+        idx == bi ? false : true
       end
 
       def __parse_characters
@@ -355,40 +393,7 @@ module LevisLibs
       end
 
       def __read_escape(str)
-        __matchb!(0x5c) &&
-          (__expect_any!("\"", "\\", "/", "b", "f", "n", "r", "t", "u") &&
-            case @str[@idx - 1] # __peek_prev
-            when "\""
-              str << "\""
-            when "\\"
-              str << "\\"
-            when "/"
-              str << "/"
-            when "b"
-              str << "\b"
-            when "f"
-              str << "\f"
-            when "n"
-              str << "\n"
-            when "r"
-              str << "\r"
-            when "t"
-              str << "\t"
-            when "u"
-              unless $__ll_json_move_fast_and_break_things
-                raise(NotImplementedError, "unicode escapes not yet implemented")
-              end
-
-              acc = ""
-              4.times {
-                acc << __expect!(->(c) {
-                                   # i'll leave this "slow" for now
-                                   IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
-                                 })
-              } # could be done better, i'm tired
-              str << acc.to_i(16)
-
-            end)
+        __matchb!(0x5c) && @medt[@str.getbyte(@idx)][self, str]
       end
 
       def __parse_elements
@@ -407,17 +412,15 @@ module LevisLibs
 
       def __parse_members
         hsh = {}
-        key, value = __parse_member
-        hsh[key] = value
+        __parse_member(hsh)
         while __matchb!(0x2c)
-          key, value = __parse_member
-          hsh[key] = value
+          __parse_member(hsh)
         end
 
         hsh
       end
 
-      def __parse_member
+      def __parse_member(href)
         cc = @str.getbyte(@idx)
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
@@ -479,7 +482,7 @@ module LevisLibs
           cc = @str.getbyte(@idx)
         end
 
-        [@kw[:symbolize_keys] ? key.to_sym : key, value]
+        href[@kw[:symbolize_keys] ? key.to_sym : key] = value
       end
 
       def __handle_symbol_extension(hsh)
