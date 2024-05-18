@@ -4,11 +4,10 @@ module LevisLibs
       class UnexpectedChar < StandardError
       end
 
-
       @str_false = "false".freeze
       @str_true = "true".freeze
       @str_null = "null".freeze
-      
+
       MAGIC_DISPATCH_TABLE = ([->(sself) {
                                  sself.__raise_unexpected
                                }] * 256).tap { |t|
@@ -54,7 +53,7 @@ module LevisLibs
           sself.__advance_not_nl
           sself.__skip_ws
           return {} if sself.__matchb!(0x7d)
-          
+
           hsh = sself.__parse_members
           sself.__expectb_!(0x7d)
 
@@ -64,30 +63,52 @@ module LevisLibs
         } # "{"
       }.freeze
 
-      MAGIC_ESCAPE_DISPATCH_TABLE = ([-> sself, str { str << __advance }] * 256).tap { |t|
-        t[0x22] = -> sself, str { str << 0x22; sself.__advance_not_nl }
-        t[0x2f] = -> sself, str { str << 0x2f; sself.__advance_not_nl }
-        t[0x5c] = -> sself, str { str << 0x5c; sself.__advance_not_nl }
-        t[0x62] = -> sself, str { str << 0x08; sself.__advance_not_nl }
-        t[0x66] = -> sself, str { str << 0x0c; sself.__advance_not_nl }
-        t[0x6e] = -> sself, str { str << 0x0a; sself.__advance_not_nl }
-        t[0x72] = -> sself, str { str << 0x0d; sself.__advance_not_nl }
-        t[0x74] = -> sself, str { str << 0x09; sself.__advance_not_nl }
-        t[0x75] = -> sself, str { 
-              unless $__ll_json_move_fast_and_break_things
-                raise(NotImplementedError, "unicode escapes not yet implemented")
-              end
+      MAGIC_ESCAPE_DISPATCH_TABLE = ([->(_sself, str) { str << __advance }] * 256).tap { |t|
+        t[0x22] = ->(sself, str) {
+          str << 0x22
+          sself.__advance_not_nl
+        }
+        t[0x2f] = ->(sself, str) {
+          str << 0x2f
+          sself.__advance_not_nl
+        }
+        t[0x5c] = ->(sself, str) {
+          str << 0x5c
+          sself.__advance_not_nl
+        }
+        t[0x62] = ->(sself, str) {
+          str << 0x08
+          sself.__advance_not_nl
+        }
+        t[0x66] = ->(sself, str) {
+          str << 0x0c
+          sself.__advance_not_nl
+        }
+        t[0x6e] = ->(sself, str) {
+          str << 0x0a
+          sself.__advance_not_nl
+        }
+        t[0x72] = ->(sself, str) {
+          str << 0x0d
+          sself.__advance_not_nl
+        }
+        t[0x74] = ->(sself, str) {
+          str << 0x09
+          sself.__advance_not_nl
+        }
+        t[0x75] = ->(sself, str) {
+          raise(NotImplementedError, "unicode escapes not yet implemented") unless $__ll_json_move_fast_and_break_things
 
           sself.__advance_not_nl
-          
-              acc = ""
-              4.times {
-                acc << sself.__expect!(->(c) {
-                                   # i'll leave this "slow" for now
-                                   IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
-                                 })
-              } # could be done better, i'm tired
-              str << acc.to_i(16)
+
+          acc = ""
+          4.times {
+            acc << sself.__expect!(->(c) {
+                                     # i'll leave this "slow" for now
+                                     IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
+                                   })
+          } # could be done better, i'm tired
+          str << acc.to_i(16)
         }
       }.freeze
 
@@ -136,7 +157,7 @@ module LevisLibs
         @idx += 1
         @col += 1
       end
-      
+
       def __peek
         @str[@idx]
       end
@@ -375,7 +396,7 @@ module LevisLibs
           (cc >= 0x30 && cc <= 0x39) && (@idx += 1
                                          @col += 1) # inlined IS_DIGIT & __advance
         )
-        idx == bi ? false : true
+        !(idx == bi)
       end
 
       def __parse_characters
@@ -389,7 +410,7 @@ module LevisLibs
         next while __matchp!(->(c) { c == 0x5c || c == 0x22 ? false : true })
 
         str << @str[start...@idx]
-        start == @idx ? false : true
+        !(start == @idx)
       end
 
       def __read_escape(str)
@@ -413,9 +434,7 @@ module LevisLibs
       def __parse_members
         hsh = {}
         __parse_member(hsh)
-        while __matchb!(0x2c)
-          __parse_member(hsh)
-        end
+        __parse_member(hsh) while __matchb!(0x2c)
 
         hsh
       end
