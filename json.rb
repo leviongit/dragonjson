@@ -183,17 +183,14 @@ module LevisLibs
         @str[@idx]
       end
 
+      # note to self: don't `match` or `expect` a newline
+
       def __match!(c)
         # __peek
         if @str.getbyte(@idx) == c = c.ord
           @idx += 1
 
-          return (if c == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end)
+          return @col += 1
         end
 
         return false
@@ -204,10 +201,6 @@ module LevisLibs
           @idx += 1
 
           @col += 1
-          return true unless b == 10
-
-          @ln += 1
-          @col = 1
           return true
         end
 
@@ -216,7 +209,9 @@ module LevisLibs
 
       def __matchp!(p)
         if p[@str.getbyte(@idx)]
-          __advance_
+          @idx += 1
+          @col += 1
+
           return true
         end
 
@@ -227,12 +222,7 @@ module LevisLibs
         # __peek
         if @str.getbyte(@idx) == c = c.ord
 
-          if c == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
+          @col += 1
 
           return (@idx += 1)
         end
@@ -247,17 +237,24 @@ module LevisLibs
         if @str.getbyte(@idx) == b
           @idx += 1
 
-          if b == 10
-
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
+          @col += 1
         else
           raise(
             UnexpectedChar,
-            "Expected #{b.chr}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
+            "Expected #{b.chr.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
+          )
+        end
+      end
+
+      def __expectb_nf_!(cc, b)
+        if cc == b
+          @idx += 1
+
+          @col += 1
+        else
+          raise(
+            UnexpectedChar,
+            "Expected #{b.chr.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
           )
         end
       end
@@ -448,7 +445,7 @@ module LevisLibs
 
       def __read_characters(str)
         start = @idx
-        while __matchp!(-> (c) { c == 0x5c || c == 0x22 ? false : true })
+        while __matchp!(-> (c) { c == 0x5c || c == 0x22 || c == 0x0a ? false : true })
         end
 
         str << @str[start...@idx]
@@ -514,7 +511,7 @@ module LevisLibs
           cc = @str.getbyte(@idx)
         end
 
-        __expectb_!(0x3a)
+        __expectb_nf_!(cc, 0x3a)
 
         cc = @str.getbyte(@idx)
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
