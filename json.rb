@@ -8,109 +8,129 @@ module LevisLibs
       @str_true = "true".freeze
       @str_null = "null".freeze
 
-      MAGIC_DISPATCH_TABLE = ([->(sself) {
-                                 sself.__raise_unexpected
-                               }] * 256).tap { |t|
-        t[0x22] = ->(sself) {
-          sself.__parse_string
-        } # "\""
-        read_num = ->(sself) {
-          sself.__parse_number
-        }
-        t[0x2d] = read_num # "-"
-        t[0x30] = read_num # "0"
-        t[0x31] = read_num # "1"
-        t[0x32] = read_num # "2"
-        t[0x33] = read_num # "3"
-        t[0x34] = read_num # "4"
-        t[0x35] = read_num # "5"
-        t[0x36] = read_num # "6"
-        t[0x37] = read_num # "7"
-        t[0x38] = read_num # "8"
-        t[0x39] = read_num # "9"
-        t[0x5b] = ->(sself) {
-          sself.__advance_not_nl
-          sself.__skip_ws
-          return [] if sself.__matchb!(0x5d)
+      MAGIC_DISPATCH_TABLE = ([
+        -> (sself) { sself.__raise_unexpected }
+      ] * 256)
+        .tap { |t|
+          # "\""
+          t[0x22] = -> (sself) { sself.__parse_string }
+          read_num = -> (sself) { sself.__parse_number }
+          # "-"
+          t[0x2d] = read_num
+          # "0"
+          t[0x30] = read_num
+          # "1"
+          t[0x31] = read_num
+          # "2"
+          t[0x32] = read_num
+          # "3"
+          t[0x33] = read_num
+          # "4"
+          t[0x34] = read_num
+          # "5"
+          t[0x35] = read_num
+          # "6"
+          t[0x36] = read_num
+          # "7"
+          t[0x37] = read_num
+          # "8"
+          t[0x38] = read_num
+          # "9"
+          t[0x39] = read_num
+          t[0x5b] = -> (sself) {
+            sself.__advance_not_nl
+            sself.__skip_ws
+            return [] if sself.__matchb!(0x5d)
 
-          ary = sself.__parse_elements
-          sself.__expectb_!(0x5d)
-          ary
-        } # "["
-        t[0x66] = ->(sself) {
-          sself.__string(@str_false)
-          false
-        } # "f"
-        t[0x6e] = ->(sself) {
-          sself.__string(@str_null)
-          nil
-        } # "n"
-        t[0x74] = ->(sself) {
-          sself.__string(@str_true)
-          true
-        } # "t"
-        t[0x7b] = ->(sself) {
-          sself.__advance_not_nl
-          sself.__skip_ws
-          return {} if sself.__matchb!(0x7d)
+            ary = sself.__parse_elements
+            sself.__expectb_!(0x5d)
+            ary
+            # "["
+          }
+          t[0x66] = -> (sself) {
+            sself.__string(@str_false)
+            false
+            # "f"
+          }
+          t[0x6e] = -> (sself) {
+            sself.__string(@str_null)
+            nil
+            # "n"
+          }
+          t[0x74] = -> (sself) {
+            sself.__string(@str_true)
+            true
+            # "t"
+          }
+          t[0x7b] = -> (sself) {
+            sself.__advance_not_nl
+            sself.__skip_ws
+            return {} if sself.__matchb!(0x7d)
 
-          hsh = sself.__parse_members
-          sself.__expectb_!(0x7d)
+            hsh = sself.__parse_members
+            sself.__expectb_!(0x7d)
 
-          hsh = sself.__handle_parser_extensions(hsh)
+            hsh = sself.__handle_parser_extensions(hsh)
 
-          hsh
-        } # "{"
-      }.freeze
+            hsh
+            # "{"
+          }
+        }
+        .freeze
 
-      MAGIC_ESCAPE_DISPATCH_TABLE = ([->(_sself, str) { str << __advance }] * 256).tap { |t|
-        t[0x22] = ->(sself, str) {
-          str << 0x22
-          sself.__advance_not_nl
-        }
-        t[0x2f] = ->(sself, str) {
-          str << 0x2f
-          sself.__advance_not_nl
-        }
-        t[0x5c] = ->(sself, str) {
-          str << 0x5c
-          sself.__advance_not_nl
-        }
-        t[0x62] = ->(sself, str) {
-          str << 0x08
-          sself.__advance_not_nl
-        }
-        t[0x66] = ->(sself, str) {
-          str << 0x0c
-          sself.__advance_not_nl
-        }
-        t[0x6e] = ->(sself, str) {
-          str << 0x0a
-          sself.__advance_not_nl
-        }
-        t[0x72] = ->(sself, str) {
-          str << 0x0d
-          sself.__advance_not_nl
-        }
-        t[0x74] = ->(sself, str) {
-          str << 0x09
-          sself.__advance_not_nl
-        }
-        t[0x75] = ->(sself, str) {
-          raise(NotImplementedError, "unicode escapes not yet implemented") unless $__ll_json_move_fast_and_break_things
+      MAGIC_ESCAPE_DISPATCH_TABLE = ([-> (_sself, str) { str << __advance }] * 256)
+        .tap { |t|
+          t[0x22] = -> (sself, str) {
+            str << 0x22
+            sself.__advance_not_nl
+          }
+          t[0x2f] = -> (sself, str) {
+            str << 0x2f
+            sself.__advance_not_nl
+          }
+          t[0x5c] = -> (sself, str) {
+            str << 0x5c
+            sself.__advance_not_nl
+          }
+          t[0x62] = -> (sself, str) {
+            str << 0x08
+            sself.__advance_not_nl
+          }
+          t[0x66] = -> (sself, str) {
+            str << 0x0c
+            sself.__advance_not_nl
+          }
+          t[0x6e] = -> (sself, str) {
+            str << 0x0a
+            sself.__advance_not_nl
+          }
+          t[0x72] = -> (sself, str) {
+            str << 0x0d
+            sself.__advance_not_nl
+          }
+          t[0x74] = -> (sself, str) {
+            str << 0x09
+            sself.__advance_not_nl
+          }
+          t[0x75] = -> (sself, str) {
+            raise NotImplementedError, "unicode escapes not yet implemented" unless $__ll_json_move_fast_and_break_things
 
-          sself.__advance_not_nl
+            sself.__advance_not_nl
 
-          acc = ""
-          4.times {
-            acc << sself.__expect!(->(c) {
-                                     # i'll leave this "slow" for now
-                                     IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
-                                   })
-          } # could be done better, i'm tired
-          str << acc.to_i(16)
+            acc = ""
+            4.times {
+              acc << sself.__expect!(
+                -> (c) {
+                  # i'll leave this "slow" for now
+                  IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
+                }
+              )
+              # could be done better, i'm tired
+            }
+            str << acc.to_i(16)
+          }
         }
-      }.freeze
+        .freeze
 
       def initialize(string, **kw)
         @len = string.size
@@ -128,10 +148,11 @@ module LevisLibs
       end
 
       def __advance
-        c = @str[@idx]
+        c = @str.getbyte(@idx)
         @idx += 1
 
-        if c.ord == 10 # ascii \n
+        # ascii \n
+        if c == 10
           @ln += 1
           @col = 1
         else
@@ -162,20 +183,17 @@ module LevisLibs
         @str[@idx]
       end
 
-      def __peek_prev
-        @str[@idx - 1]
-      end
-
       def __match!(c)
-        if @str.getbyte(@idx) == c = c.ord # __peek
+        # __peek
+        if @str.getbyte(@idx) == c = c.ord
           @idx += 1
 
           return (if c == 10
-                    @ln += 1
-                    @col = 1
-                  else
-                    @col += 1
-                  end)
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end)
         end
 
         return false
@@ -206,9 +224,23 @@ module LevisLibs
       end
 
       def __expect!(c)
-        __match!(c) || raise(UnexpectedChar,
-                             "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
-        @str[@idx - 1] # __peek_prev
+        # __peek
+        if @str.getbyte(@idx) == c = c.ord
+
+          if c == 10
+            @ln += 1
+            @col = 1
+          else
+            @col += 1
+          end
+
+          return (@idx += 1)
+        end
+
+        raise(
+          UnexpectedChar,
+          "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
+        )
       end
 
       def __expectb_!(b)
@@ -223,17 +255,11 @@ module LevisLibs
             @col += 1
           end
         else
-          raise(UnexpectedChar,
-                "Expected #{b.chr}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
+          raise(
+            UnexpectedChar,
+            "Expected #{b.chr}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
+          )
         end
-      end
-
-      def __expect_any!(*cs)
-        cs.any? { __match!(_1) } ||
-          raise(UnexpectedChar, "Expected any of #{cs.map {
-                                                     _1.inspect
-                                                   }.join(", ")}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]")
-        @str[@idx - 1] # __peek_prev
       end
 
       def __string(str)
@@ -241,8 +267,10 @@ module LevisLibs
         i = 0
         while sl > i
           if @str.getbyte(@idx) != str.getbyte(i)
-            raise(UnexpectedChar,
-                  "Expected '#{str[i]}', got '#{__peek}' (in \"#{str}\" literal)")
+            raise(
+              UnexpectedChar,
+              "Expected '#{str[i]}', got '#{__peek}' (in \"#{str}\" literal)"
+            )
           end
 
           __advance_not_nl
@@ -255,7 +283,8 @@ module LevisLibs
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
 
-          if cc == 10 # ascii \n
+          # ascii \n
+          if cc == 10
             @ln += 1
             @col = 1
           else
@@ -271,7 +300,8 @@ module LevisLibs
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
 
-          if cc == 10 # ascii \n
+          # ascii \n
+          if cc == 10
             @ln += 1
             @col = 1
           else
@@ -281,13 +311,14 @@ module LevisLibs
           cc = @str.getbyte(@idx)
         end
 
-        v = @mct[@str.getbyte(@idx)][self]
+        v = @mct[cc][self]
 
         cc = @str.getbyte(@idx)
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
 
-          if cc == 10 # ascii \n
+          # ascii \n
+          if cc == 10
             @ln += 1
             @col = 1
           else
@@ -298,10 +329,6 @@ module LevisLibs
         end
 
         v
-      end
-
-      def __parse_value
-        @mct[@str.getbyte(@idx)][self]
       end
 
       def __parse_number
@@ -325,9 +352,9 @@ module LevisLibs
         nend = @idx
 
         if iend == nend
-          @str[start..nend].to_i
+          @str[start...nend].to_i
         else
-          @str[start..nend].to_f
+          @str[start...nend].to_f
         end
       end
 
@@ -350,7 +377,8 @@ module LevisLibs
       def __read_exp
         cc = @str.getbyte(@idx)
         if cc == 0x65 || cc == 0x45
-          @idx += 1 # inline __advance
+          # inline __advance
+          @idx += 1
           @col += 1
           __read_sign
           __read_some_digits
@@ -369,15 +397,20 @@ module LevisLibs
       end
 
       def __read_digit
-        cc = @str.getbyte(@idx)
-        (cc >= 0x30 && cc <= 0x39) && (@idx += 1
-                                       @col += 1) # inlined IS_DIGIT & __advance
+        (cc = @str.getbyte(@idx)) &&
+        (cc >= 0x30 && cc <= 0x39) && (
+          @idx += 1
+          @col += 1
+        )
       end
 
       def __read_onenine
         cc = @str.getbyte(@idx)
-        (cc >= 0x31 && cc <= 0x39) && (@idx += 1
-                                       @col += 1) # inlined IS_1TO9 & __advance
+        # inlined IS_1TO9 & __advance
+        (cc >= 0x31 && cc <= 0x39) && (
+          @idx += 1
+          @col += 1
+        )
       end
 
       def __read_onenine_digits
@@ -385,32 +418,41 @@ module LevisLibs
       end
 
       def __read_many_digits
-        next while __read_digit
+        while __read_digit
+        end
+
         true
       end
 
       def __read_some_digits
         bi = @idx
-        next while (
-          cc = @str.getbyte(@idx)
-          (cc >= 0x30 && cc <= 0x39) && (@idx += 1
-                                         @col += 1) # inlined IS_DIGIT & __advance
-        )
-        !(idx == bi)
+        while (
+            (cc = @str.getbyte(@idx)) &&
+            (cc >= 0x30 && cc <= 0x39) && (
+              @idx += 1
+              @col += 1
+            )
+          )
+        end
+
+        (@idx == bi) ? false : true
       end
 
       def __parse_characters
         str = ""
-        next while __read_characters(str) || __read_escape(str)
+        while __read_characters(str) || __read_escape(str)
+        end
+
         str
       end
 
       def __read_characters(str)
         start = @idx
-        next while __matchp!(->(c) { c == 0x5c || c == 0x22 ? false : true })
+        while __matchp!(-> (c) { c == 0x5c || c == 0x22 ? false : true })
+        end
 
         str << @str[start...@idx]
-        !(start == @idx)
+        (start == @idx) ? false : true
       end
 
       def __read_escape(str)
@@ -444,7 +486,8 @@ module LevisLibs
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
 
-          if cc == 10 # ascii \n
+          # ascii \n
+          if cc == 10
             @ln += 1
             @col = 1
           else
@@ -460,7 +503,8 @@ module LevisLibs
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
 
-          if cc == 10 # ascii \n
+          # ascii \n
+          if cc == 10
             @ln += 1
             @col = 1
           else
@@ -476,7 +520,8 @@ module LevisLibs
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
 
-          if cc == 10 # ascii \n
+          # ascii \n
+          if cc == 10
             @ln += 1
             @col = 1
           else
@@ -485,13 +530,15 @@ module LevisLibs
 
           cc = @str.getbyte(@idx)
         end
-        value = @mct[@str.getbyte(@idx)][self]
+
+        value = @mct[cc][self]
 
         cc = @str.getbyte(@idx)
         while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
           @idx += 1
 
-          if cc == 10 # ascii \n
+          # ascii \n
+          if cc == 10
             @ln += 1
             @col = 1
           else
@@ -533,11 +580,10 @@ module LevisLibs
         return hsh unless @kw[:extensions]
 
         (if hsh.size == 1
-           __handle_symbol_extension(hsh)
-         elsif hsh.size == 2
-           __handle_object_extension(hsh)
-         end) ||
-          hsh
+          __handle_symbol_extension(hsh)
+        elsif hsh.size == 2
+          __handle_object_extension(hsh)
+        end) || hsh
       end
 
       alias parse __parse_element
@@ -552,8 +598,10 @@ module LevisLibs
     class << self
       def write(value, indent_size = 4, **kw)
         if !(Array === value || Hash === value)
-          raise ArgumentError,
-                "Top-level value must be either an Array or a Hash"
+          raise(
+            ArgumentError,
+            "Top-level value must be either an Array or a Hash"
+          )
         end
 
         value.to_json(
@@ -580,22 +628,14 @@ module LevisLibs
         space_in_empty: true,
         **kw
       )
-        raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? {
-                                                                                      String === _1 || Symbol === _1
-                                                                                    }
+        raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? { String === _1 || Symbol === _1 }
 
         space_in_empty &&= !minify
 
         return "{#{space_in_empty ? " " : ""}}" if self.length == 0
 
         space = minify ? "" : " "
-        pairs = self.map { |k, v|
-          "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1,
-                                                               indent_size: indent_size,
-                                                               minify: minify,
-                                                               space_in_empty: space_in_empty,
-                                                               **kw)}"
-        }
+        pairs = self.map { |k, v| "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty, **kw)}" }
 
         if minify
           "{#{pairs.join(",")}}"
@@ -620,11 +660,13 @@ module LevisLibs
         return "[#{space_in_empty ? " " : ""}]" if self.length == 0
 
         values = self.map { |v|
-          v.to_json(indent_depth: indent_depth + 1,
-                    indent_size: indent_size,
-                    minify: minify,
-                    space_in_empty: space_in_empty,
-                    **kw)
+          v.to_json(
+            indent_depth: indent_depth + 1,
+            indent_size: indent_size,
+            minify: minify,
+            space_in_empty: space_in_empty,
+            **kw
+          )
         }
 
         if minify
@@ -718,6 +760,7 @@ module LevisLibs
             else
               acc << "\\u" << cc.to_s(16).rjust(4, "0")
             end
+
             next
           end
 
@@ -738,7 +781,7 @@ module LevisLibs
         **kw
       )
         if extensions
-          { "@@jm:symbol": self.to_s }.to_json(**kw, minify: true)
+          {:"@@jm:symbol" => self.to_s}.to_json(**kw, minify: true)
         else
           self.to_s.inspect
         end
