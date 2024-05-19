@@ -4,360 +4,151 @@ module LevisLibs
       class UnexpectedChar < StandardError
       end
 
-      @str_false = "false".freeze
-      @str_true = "true".freeze
-      @str_null = "null".freeze
+      MAGIC_DISPATCH_TABLE = [:__raise_unexpected] * 256
+      MAGIC_DISPATCH_TABLE['"'.ord] = :__parse_string
+      MAGIC_DISPATCH_TABLE['-'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['0'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['1'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['2'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['3'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['4'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['5'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['6'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['7'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['8'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['9'.ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE['['.ord] = :__parse_array
+      MAGIC_DISPATCH_TABLE['f'.ord] = :__parse_false
+      MAGIC_DISPATCH_TABLE['n'.ord] = :__parse_null
+      MAGIC_DISPATCH_TABLE['t'.ord] = :__parse_true
+      MAGIC_DISPATCH_TABLE['{'.ord] = :__parse_hash
+      MAGIC_DISPATCH_TABLE.freeze
 
-      MAGIC_DISPATCH_TABLE = ([
-        -> (sself) { sself.__raise_unexpected }
-      ] * 256)
-        .tap { |t|
-          # "\""
-          t[0x22] = -> (sself) { sself.__parse_string }
-          read_num = -> (sself) { sself.__parse_number }
-          # "-"
-          t[0x2d] = read_num
-          # "0"
-          t[0x30] = read_num
-          # "1"
-          t[0x31] = read_num
-          # "2"
-          t[0x32] = read_num
-          # "3"
-          t[0x33] = read_num
-          # "4"
-          t[0x34] = read_num
-          # "5"
-          t[0x35] = read_num
-          # "6"
-          t[0x36] = read_num
-          # "7"
-          t[0x37] = read_num
-          # "8"
-          t[0x38] = read_num
-          # "9"
-          t[0x39] = read_num
-          t[0x5b] = -> (sself) {
-            sself.__advance_not_nl
-            sself.__skip_ws
-            return [] if sself.__matchb!(0x5d)
-
-            ary = sself.__parse_elements
-            sself.__expectb_!(0x5d)
-            ary
-            # "["
-          }
-          t[0x66] = -> (sself) {
-            sself.__string(@str_false)
-            false
-            # "f"
-          }
-          t[0x6e] = -> (sself) {
-            sself.__string(@str_null)
-            nil
-            # "n"
-          }
-          t[0x74] = -> (sself) {
-            sself.__string(@str_true)
-            true
-            # "t"
-          }
-          t[0x7b] = -> (sself) {
-            sself.__advance_not_nl
-            sself.__skip_ws
-            return {} if sself.__matchb!(0x7d)
-
-            hsh = sself.__parse_members
-            sself.__expectb_!(0x7d)
-
-            hsh = sself.__handle_parser_extensions(hsh)
-
-            hsh
-            # "{"
-          }
-        }
-        .freeze
-
-      MAGIC_ESCAPE_DISPATCH_TABLE = ([-> (_sself, str) { str << __advance }] * 256)
-        .tap { |t|
-          t[0x22] = -> (sself, str) {
-            str << 0x22
-            sself.__advance_not_nl
-          }
-          t[0x2f] = -> (sself, str) {
-            str << 0x2f
-            sself.__advance_not_nl
-          }
-          t[0x5c] = -> (sself, str) {
-            str << 0x5c
-            sself.__advance_not_nl
-          }
-          t[0x62] = -> (sself, str) {
-            str << 0x08
-            sself.__advance_not_nl
-          }
-          t[0x66] = -> (sself, str) {
-            str << 0x0c
-            sself.__advance_not_nl
-          }
-          t[0x6e] = -> (sself, str) {
-            str << 0x0a
-            sself.__advance_not_nl
-          }
-          t[0x72] = -> (sself, str) {
-            str << 0x0d
-            sself.__advance_not_nl
-          }
-          t[0x74] = -> (sself, str) {
-            str << 0x09
-            sself.__advance_not_nl
-          }
-          t[0x75] = -> (sself, str) {
-            raise NotImplementedError, "unicode escapes not yet implemented" unless $__ll_json_move_fast_and_break_things
-
-            sself.__advance_not_nl
-
-            acc = ""
-            4.times {
-              acc << sself.__expectp!(-> b { (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x46) || (b >= 0x61 && b <= 0x66) })
-              # could be done better, i'm tired
-            }
-            str << acc.to_i(16)
-          }
-        }
-        .freeze
-
-      def initialize(string, **kw)
-        @len = string.size
+      def initialize(string, symbolize_keys: false, **kw)
         @str = string
         @idx = 0
-        @col = 1
-        @ln = 1
-        @mct = MAGIC_DISPATCH_TABLE
-        @medt = MAGIC_ESCAPE_DISPATCH_TABLE
+        @c = string.getbyte(0)
+
+        @symbolize_keys = symbolize_keys
         @kw = kw
       end
 
-      def __raise_unexpected(_c = nil)
-        raise UnexpectedChar, "Unexpected char '#{__peek}' at [#{@ln}:#{@col}]"
+      def __failed(msg)
+        line = @str.slice(0, @idx).count("\n") + 1
+        column = idx - ("abc\ndef".rindex("\n", (idx - 1).clamp(0, idx)) || -1)
+        raise UnexpectedChar, "#{msg} at [#{line}:#{column}]"
+      end
+
+      def __raise_unexpected
+        __failed "Unexpected char '#{@c.chr}'"
       end
 
       def __advance
-        c = @str.getbyte(@idx)
-        @idx += 1
-
-        # ascii \n
-        if c == 10
-          @ln += 1
-          @col = 1
-        else
-          @col += 1
-        end
-
-        c
-      end
-
-      def __advance_
-        c = @str.getbyte(@idx)
-        @idx += 1
-
-        if c == 10
-          @ln += 1
-          @col = 1
-        else
-          @col += 1
-        end
-      end
-
-      def __advance_not_nl
-        @idx += 1
-        @col += 1
-      end
-
-      def __peek
-        @str[@idx]
-      end
-
-      # note to self: don't `match` or `expect` a newline
-
-      def __match!(c)
-        # __peek
-        if @str.getbyte(@idx) == c = c.ord
-          @idx += 1
-
-          return @col += 1
-        end
-
-        return false
+        @c = @str.getbyte(@idx += 1)
       end
 
       def __matchb!(b)
-        if @str.getbyte(@idx) == b
-          @idx += 1
-
-          @col += 1
-          return true
-        end
-
-        return false
+        __advance if @c == b
       end
 
-      def __matchp!(p)
-        if p[@str.getbyte(@idx)]
-          @idx += 1
-          @col += 1
-
-          return true
-        end
-
-        return false
-      end
-
-      def __expect!(c)
-        # __peek
-        if @str.getbyte(@idx) == c = c.ord
-
-          @col += 1
-
-          return (@idx += 1)
-        end
-
-        raise(
-          UnexpectedChar,
-          "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
-        )
-      end
-
-      def __expectp!(p)
-        if p[c = @str.getbyte(@idx)]
-          @idx += 1
-          @col += 1
-
-          return c
-        end
-
-        __raise_unexpected
-      end
-
-      def __expectb_!(b)
-        if @str.getbyte(@idx) == b
-          @idx += 1
-
-          @col += 1
-        else
-          raise(
-            UnexpectedChar,
-            "Expected #{b.chr.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
-          )
-        end
-      end
-
-      def __expectb_nf_!(cc, b)
-        if cc == b
-          @idx += 1
-
-          @col += 1
-        else
-          raise(
-            UnexpectedChar,
-            "Expected #{b.chr.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
-          )
-        end
+      def __expectb!(b)
+        return __advance if @c == b
+        __failed "Expected #{b.chr.inspect}, but got #{@c.chr.inspect}"
       end
 
       def __string(str)
         sl = str.length
         i = 0
         while sl > i
-          if @str.getbyte(@idx) != str.getbyte(i)
-            raise(
-              UnexpectedChar,
-              "Expected '#{str[i]}', got '#{__peek}' (in \"#{str}\" literal)"
-            )
+          if @c != str.getbyte(i)
+            __failed "Expected '#{str[i]}', got '#{@c.chr}' (in \"#{str}\" literal)"
           end
 
-          __advance_not_nl
+          __advance
           i += 1
         end
+
+        return nil
       end
 
       def __skip_ws
-        cc = @str.getbyte(@idx)
-        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
-          @idx += 1
+        __advance while @c == 0x20 || @c == 0x0A || @c == 0x09 || @c == 0x0D
+      end
 
-          # ascii \n
-          if cc == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
+      def __parse_array
+        __advance
+        __skip_ws
+
+        array = []
+
+        unless __matchb!(0x5d) # 0x5d is closing square bracket
+          while true
+            array << __parse_element
+            __skip_ws
+            break unless __matchb!(0x2c) # 0x2c is comma
           end
 
-          cc = @str.getbyte(@idx)
+          __expectb!(0x5d) # 0x5d is closing square bracket
         end
+
+        return array
+      end
+
+      def __parse_hash
+        __advance
+        __skip_ws
+
+        hash = {}
+
+        unless __matchb!(0x7d) # 0x7d is closing curly brace
+          while true
+            __parse_member(hash)
+            __skip_ws
+            break unless __matchb!(0x2c) # 0x2c is comma
+          end
+
+          __expectb!(0x7d) # 0x7d is closing curly brace
+
+          hash = __handle_parser_extensions(hash)
+        end
+
+        return hash
       end
 
       def __parse_element
-        cc = @str.getbyte(@idx)
-        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
-          @idx += 1
+        __skip_ws
+        __parse_value
+      end
 
-          # ascii \n
-          if cc == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
+      def __parse_null
+        __string("null")
+      end
 
-          cc = @str.getbyte(@idx)
-        end
+      def __parse_true
+        __string("true")
+      end
 
-        v = @mct[cc][self]
+      def __parse_false
+        __string("false")
+      end
 
-        cc = @str.getbyte(@idx)
-        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
-          @idx += 1
-
-          # ascii \n
-          if cc == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
-
-          cc = @str.getbyte(@idx)
-        end
-
-        v
+      def __parse_value
+        send(MAGIC_DISPATCH_TABLE[@c])
       end
 
       def __parse_number
         start = @idx
-        __read_integer || raise(
-          UnexpectedChar,
-          "Expected the integer part of a numeric literal, got '#{__peek}', [#{@ln}:#{@col}]"
-        )
+        __read_integer || __failed("Expected the integer part of a numeric literal, got '#{@c.chr}'")
         iend = @idx
 
-        __read_frac ||
-          raise(
-            UnexpectedChar,
-            "Expected nothing or the fractional part of a numeric literal, got '#{__peek}', [#{@ln}:#{@col}]"
-          )
-        __read_exp ||
-          raise(
-            UnexpectedChar,
-            "Expected nothing or the exponent part of a numeric literal, got '#{__peek}' [#{@ln}:#{@col}]"
-          )
+        __read_frac || __failed("Expected nothing or the fractional part of a numeric literal, got '#{@c.chr}'")
+        __read_exp || __failed("Expected nothing or the exponent part of a numeric literal, got '#{@c.chr}'")
         nend = @idx
 
         if iend == nend
-          @str[start...nend].to_i
+          @str[start..@idx].to_i
         else
-          @str[start...nend].to_f
+          @str[start..@idx].to_f
         end
       end
 
@@ -366,201 +157,125 @@ module LevisLibs
       end
 
       def __read_integer
-        __read_unsigned_integer || (__matchb!(0x2d) && __read_unsigned_integer)
+        __matchb!(0x2d) # 0x2d is minus
+        __read_unsigned_integer
       end
 
       def __read_frac
-        if __matchb!(0x2e)
-          __read_some_digits
-        else
-          true
-        end
+        return true unless __matchb!(0x2e) # 0x2e is period
+        __read_some_digits
       end
 
       def __read_exp
-        cc = @str.getbyte(@idx)
-        if cc == 0x65 || cc == 0x45
-          # inline __advance
-          @idx += 1
-          @col += 1
-          __read_sign
-          __read_some_digits
-        else
-          true
-        end
+        return true unless @c == 0x65 || @c == 0x45 # 0x65 is e, 0x45 is E
+        __advance
+        __read_sign
+        __read_some_digits
       end
 
       def __read_sign
-        cc = @str.getbyte(@idx)
-        return unless cc == 0x2b || cc == 0x2d
-
-        @idx += 1
-        @col += 1
-        # inline __advance
+        __advance if @c == 0x2b || @c == 0x2d # 0x2b is plus, 0x2d is minus
       end
 
       def __read_digit
-        (cc = @str.getbyte(@idx)) &&
-        (cc >= 0x30 && cc <= 0x39) && (
-          @idx += 1
-          @col += 1
-        )
+        __advance if @c >= 0x30 && @c <= 0x39 # 0-9
       end
 
       def __read_onenine
-        cc = @str.getbyte(@idx)
-        # inlined IS_1TO9 & __advance
-        (cc >= 0x31 && cc <= 0x39) && (
-          @idx += 1
-          @col += 1
-        )
+        __advance if @c >= 0x31 && @c <= 0x39 # 1-9
       end
 
       def __read_onenine_digits
-        __read_onenine && __read_many_digits
-      end
-
-      def __read_many_digits
-        while __read_digit
-        end
-
-        true
+        __read_many_digits if __read_onenine
       end
 
       def __read_some_digits
-        bi = @idx
-        while (
-            (cc = @str.getbyte(@idx)) &&
-            (cc >= 0x30 && cc <= 0x39) && (
-              @idx += 1
-              @col += 1
-            )
-          )
-        end
+        __read_many_digits if __read_digit
+      end
 
-        (@idx == bi) ? false : true
+      def __read_many_digits
+        next while __read_digit
+        return true
       end
 
       def __parse_characters
         str = ""
-        while __read_characters(str) || __read_escape(str)
-        end
-
+        next while __read_characters(str) || __read_escape(str)
         str
       end
 
       def __read_characters(str)
         start = @idx
-        while __matchp!(-> (c) { c == 0x5c || c == 0x22 || c == 0x0a ? false : true })
-        end
+        __advance until @c == 0x5c || @c == 0x22 # 0x5c is backslash, 0x22 is double quote
 
-        str << @str[start...@idx]
-        (start == @idx) ? false : true
+        if start != @idx
+          str << @str[start...@idx]
+          return true
+        end
       end
 
       def __read_escape(str)
-        __matchb!(0x5c) && @medt[@str.getbyte(@idx)][self, str]
-      end
+        return false unless __matchb!(0x5c) # 0x5c is backslash
 
-      def __parse_elements
-        ary = [__parse_element]
-        ary << __parse_element while __matchb!(0x2c)
+        chr = @c.chr
+        case chr
+        when ?", ?\\, ?/
+          str << chr
+        when ?b
+          str << "\b"
+        when ?f
+          str << "\f"
+        when ?n
+          str << "\n"
+        when ?r
+          str << "\r"
+        when ?t
+          str << "\t"
+        when ?u
+          unless $__ll_json_move_fast_and_break_things
+            __failed "unicode escapes not yet implemented"
+          end
 
-        ary
+          # acc = ""
+          # 4.times {
+          #   acc << __expect!(->(c) {
+          #                       # i'll leave this "slow" for now
+          #                       IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
+          #                     })
+          # } # could be done better, i'm tired
+          # str << acc.to_i(16)
+        else
+          __failed "Unexpected escape #{@c.chr}"
+        end
+
+        return __advance
       end
 
       def __parse_string
-        __expectb_!(0x22)
+        __expectb!(0x22) # 0x22 is double quote
         str = __parse_characters
-        __expectb_!(0x22)
-        str
+        __expectb!(0x22) # 0x22 is double quote
+        return str
       end
 
-      def __parse_members
-        hsh = {}
-        __parse_member(hsh)
-        __parse_member(hsh) while __matchb!(0x2c)
-
-        hsh
-      end
-
-      def __parse_member(href)
-        cc = @str.getbyte(@idx)
-        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
-          @idx += 1
-
-          # ascii \n
-          if cc == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
-
-          cc = @str.getbyte(@idx)
-        end
-
+      def __parse_member(hash)
+        __skip_ws
         key = __parse_string
+        key = key.to_sym if @symbolize_keys
+        __skip_ws
+        __expectb!(0x3a) # 0x3a is colon
+        __skip_ws
+        hash[key] = __parse_value
 
-        cc = @str.getbyte(@idx)
-        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
-          @idx += 1
-
-          # ascii \n
-          if cc == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
-
-          cc = @str.getbyte(@idx)
-        end
-
-        __expectb_nf_!(cc, 0x3a)
-
-        cc = @str.getbyte(@idx)
-        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
-          @idx += 1
-
-          # ascii \n
-          if cc == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
-
-          cc = @str.getbyte(@idx)
-        end
-
-        value = @mct[cc][self]
-
-        cc = @str.getbyte(@idx)
-        while cc == 0x20 || cc == 0x09 || cc == 0x0a || cc == 0x0d
-          @idx += 1
-
-          # ascii \n
-          if cc == 10
-            @ln += 1
-            @col = 1
-          else
-            @col += 1
-          end
-
-          cc = @str.getbyte(@idx)
-        end
-
-        href[@kw[:symbolize_keys] ? key.to_sym : key] = value
+        return nil
       end
 
       def __handle_symbol_extension(hsh)
-        hsh[@kw[:symbolize_keys] ? :"@@jm:symbol" : "@@jm:symbol"]&.to_sym
+        hsh[@symbolize_keys ? :"@@jm:symbol" : "@@jm:symbol"]&.to_sym
       end
 
       def __handle_object_extension(hsh)
-        symbolize_keys = @kw[:symbolize_keys]
-        class_key = symbolize_keys ? :"@@jm:class" : "@@jm:class"
+        class_key = @symbolize_keys ? :"@@jm:class" : "@@jm:class"
 
         classname = hsh[class_key]
         return if !classname
@@ -571,7 +286,7 @@ module LevisLibs
           raise JSONUnsupportedType, "class #{classname} doesn't implement the `from_json` method"
         end
 
-        value_key = symbolize_keys ? :"@@jm:value" : "@@jm:value"
+        value_key = @symbolize_keys ? :"@@jm:value" : "@@jm:value"
         return if !hsh.key?(value_key)
 
         value = hsh[value_key]
@@ -583,10 +298,11 @@ module LevisLibs
         return hsh unless @kw[:extensions]
 
         (if hsh.size == 1
-          __handle_symbol_extension(hsh)
-        elsif hsh.size == 2
-          __handle_object_extension(hsh)
-        end) || hsh
+           __handle_symbol_extension(hsh)
+         elsif hsh.size == 2
+           __handle_object_extension(hsh)
+         end) ||
+          hsh
       end
 
       alias parse __parse_element
