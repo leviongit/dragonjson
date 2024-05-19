@@ -25,7 +25,7 @@ module LevisLibs
         t[0x38] = read_num # "8"
         t[0x39] = read_num # "9"
         t[0x5b] = ->(sself) {
-          sself.__advance
+          sself.__advance_
           sself.__skip_ws
           return [] if sself.__match!("]")
 
@@ -46,7 +46,7 @@ module LevisLibs
           true
         } # "t"
         t[0x7b] = ->(sself) {
-          sself.__advance
+          sself.__advance_
           sself.__skip_ws
           return {} if sself.__match!("}")
 
@@ -74,7 +74,7 @@ module LevisLibs
         raise UnexpectedChar, "Unexpected char '#{@c.chr}' at [#{@ln}:#{@col}]"
       end
 
-      def __advance
+      def __advance_
         @idx += 1
         @c = @str.getbyte(@idx)
 
@@ -94,7 +94,7 @@ module LevisLibs
 
       def __matchb!(b)
         if @c == b
-          __advance
+          __advance_
           return true
         else
           return false
@@ -111,7 +111,7 @@ module LevisLibs
 
       def __matchp!(p)
         if p[@c]
-          __advance
+          __advance_
           return true
         else
           return false
@@ -144,7 +144,7 @@ module LevisLibs
             raise(UnexpectedChar, "Expected '#{str[i]}', got '#{@c.chr}' (in \"#{str}\" literal)")
           end
 
-          __advance
+          __advance_
           i += 1
         end
 
@@ -152,7 +152,7 @@ module LevisLibs
       end
 
       def __skip_ws
-        __advance while @c == 0x20 || @c == 0x0a || @c == 0x09 || @c == 0x0d
+        __advance_ while @c == 0x20 || @c == 0x0a || @c == 0x09 || @c == 0x0d
         return
       end
 
@@ -249,7 +249,7 @@ module LevisLibs
 
       def __read_characters(str)
         start = @idx
-        __advance until @c == 0x5c || @c == 0x22
+        __advance_ until @c == 0x5c || @c == 0x22
 
         if start != @idx
           str << @str[start...@idx]
@@ -293,7 +293,7 @@ module LevisLibs
           raise(UnexpectedChar, "Unexpected escape #{@c.chr} at #{@idx}, [#{@ln}:#{@col}]")
         end
 
-        __advance
+        __advance_
         return true
       end
 
