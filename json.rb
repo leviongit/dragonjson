@@ -119,12 +119,7 @@ module LevisLibs
 
             acc = ""
             4.times {
-              acc << sself.__expect!(
-                -> (c) {
-                  # i'll leave this "slow" for now
-                  IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
-                }
-              )
+              acc << sself.__expectp!(-> b { (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x46) || (b >= 0x61 && b <= 0x66) })
               # could be done better, i'm tired
             }
             str << acc.to_i(16)
@@ -231,6 +226,17 @@ module LevisLibs
           UnexpectedChar,
           "Expected #{c.inspect}, but got #{__peek.inspect} at #{@idx}, [#{@ln}:#{@col}]"
         )
+      end
+
+      def __expectp!(p)
+        if p[c = @str.getbyte(@idx)]
+          @idx += 1
+          @col += 1
+
+          return c
+        end
+
+        __raise_unexpected
       end
 
       def __expectb_!(b)
