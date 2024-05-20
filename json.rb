@@ -235,7 +235,7 @@ module LevisLibs
 
         case @c
         when 0x22, 0x5c, 0x2f # 0x22 is double quote, 0x5c is backslash, 0x2f is forward slash
-          str << chr
+          str << @c.chr
         when 0x62 # b
           str << 0x08 # bell
         when 0x66 # f
