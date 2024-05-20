@@ -228,18 +228,18 @@ module LevisLibs
 
         case @c
         when 0x22, 0x5c, 0x2f # 0x22 is double quote, 0x5c is backslash, 0x2f is forward slash
-          str << @c.chr
-        when 0x62 # 0x62 is b
-          str << "\b"
-        when 0x66 # 0x66 is f
-          str << "\f"
-        when 0x6e # 0x6e is n
-          str << "\n"
-        when 0x72 # 0x72 is r
-          str << "\r"
-        when 0x74 # 0x74 is t
-          str << "\t"
-        when 0x75 # 0x75 is u
+          str << chr
+        when 0x62 # b
+          str << 0x08 # bell
+        when 0x66 # f
+          str << 0x0c # form feed
+        when 0x6e # n
+          str << 0x0a # new line
+        when 0x72 # r
+          str << 0x0d # carriage ret
+        when 0x74 # t
+          str << 0x09 # horizontal tab
+        when 0x75 # u
           __failed "unicode escapes not yet reimplemented"
         when nil
           __failed "Unexpected EOF"
