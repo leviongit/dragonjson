@@ -126,6 +126,12 @@ module LevisLibs
         v
       end
 
+      def __parse_element
+        __skip_ws
+        return nil if @c.nil?
+        __parse_value
+      end
+
       def __parse_null
         __string("null")
         return nil
