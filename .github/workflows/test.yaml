@@ -1,0 +1,33 @@
+name: "Tests"
+
+on:
+  pull_request:
+    paths:
+      - '**.rb'
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        version:
+          - '5.25'
+        tier:
+          - standard
+      fail-fast: false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kfischer-okarin/download-dragonruby@v1
+        with:
+          version: ${{ matrix.version }}
+          license_tier: ${{ matrix.tier }}
+      - run: ./dragonruby test --test test/parser_compliance_tests.rb
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
