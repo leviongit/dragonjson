@@ -3,13 +3,13 @@ name: "Benchmarks"
 on:
   pull_request:
     paths:
-      - '**.rb'
+      - "**.rb"
   push:
     branches:
       - master
 
 permissions:
-  pull_requests: write
+  pull-requests: write
   contents: write
   deployments: write
 
@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         version:
-          - '5.25'
+          - "5.25"
         tier:
           - standard
       fail-fast: false
@@ -42,7 +42,7 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.version }}-${{ matrix.tier }}-benchmark
       - uses: benchmark-action/github-action-benchmark@v1
         with:
-          tool: 'customSmallerIsBetter'
+          tool: "customSmallerIsBetter"
           output-file-path: test/tmp/benchmark.json
           external-data-json-path: ./cache/benchmark-data.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
