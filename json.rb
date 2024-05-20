@@ -120,9 +120,10 @@ module LevisLibs
       def parse
         __skip_ws
         return nil if @c.nil?
-        __parse_value
+        v = __parse_value
         __skip_ws
         __failed("expected EOF got #{@c.chr.inspect}") if @c
+        v
       end
 
       def __parse_null
@@ -240,11 +241,11 @@ module LevisLibs
         when 0x74 # t
           str << 0x09 # horizontal tab
         when 0x75 # u
-          __failed "unicode escapes not yet reimplemented"
+          __failed("unicode escapes not yet reimplemented")
         when nil
-          __failed "Unexpected EOF"
+          __failed("Unexpected EOF")
         else
-          __failed "unexpected escape #{@c.chr}"
+          __failed("unexpected escape #{@c.chr}")
         end
 
         return __advance
@@ -303,8 +304,6 @@ module LevisLibs
          end) ||
           hsh
       end
-
-      alias parse __parse_element
     end
 
     class JSONKeyError < StandardError
