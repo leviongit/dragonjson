@@ -35,7 +35,7 @@ module LevisLibs
 
       def __failed(msg)
         line = @str.slice(0, @idx).count("\n") + 1
-        column = idx - ("abc\ndef".rindex("\n", (idx - 1).clamp(0, idx)) || -1)
+        column = @idx - (@str.rindex("\n", (@idx - 1).clamp(0, @idx)) || -1)
         raise UnexpectedChar, "#{msg} at [#{line}:#{column}]"
       end
 
@@ -45,6 +45,7 @@ module LevisLibs
 
       def __advance
         @c = @str.getbyte(@idx += 1)
+        return true
       end
 
       def __matchb!(b)
@@ -117,6 +118,7 @@ module LevisLibs
 
       def __parse_element
         __skip_ws
+        return nil if @c.nil?
         __parse_value
       end
 
@@ -138,17 +140,17 @@ module LevisLibs
 
       def __parse_number
         start = @idx
-        __read_integer || __failed("Expected the integer part of a numeric literal, got '#{@c.chr}'")
+        __read_integer || __failed("Expected the integer part of a numeric literal, got '#{@c&.chr || '\0'}'")
         iend = @idx
 
-        __read_frac || __failed("Expected nothing or the fractional part of a numeric literal, got '#{@c.chr}'")
-        __read_exp || __failed("Expected nothing or the exponent part of a numeric literal, got '#{@c.chr}'")
+        __read_frac || __failed("Expected nothing or the fractional part of a numeric literal, got '#{@c&.chr || '\0'}'")
+        __read_exp || __failed("Expected nothing or the exponent part of a numeric literal, got '#{@c&.chr || '\0'}'")
         nend = @idx
 
         if iend == nend
-          @str[start..@idx].to_i
+          @str[start...nend].to_i
         else
-          @str[start..@idx].to_f
+          @str[start...nend].to_f
         end
       end
 
@@ -178,11 +180,11 @@ module LevisLibs
       end
 
       def __read_digit
-        __advance if @c >= 0x30 && @c <= 0x39 # 0-9
+        __advance if @c && @c >= 0x30 && @c <= 0x39 # 0-9
       end
 
       def __read_onenine
-        __advance if @c >= 0x31 && @c <= 0x39 # 1-9
+        __advance if @c && @c >= 0x31 && @c <= 0x39 # 1-9
       end
 
       def __read_onenine_digits
@@ -194,13 +196,13 @@ module LevisLibs
       end
 
       def __read_many_digits
-        next while __read_digit
+        nil while __read_digit
         return true
       end
 
       def __parse_characters
         str = ""
-        next while __read_characters(str) || __read_escape(str)
+        nil while __read_characters(str) || __read_escape(str)
         str
       end
 
@@ -232,20 +234,9 @@ module LevisLibs
         when ?t
           str << "\t"
         when ?u
-          unless $__ll_json_move_fast_and_break_things
-            __failed "unicode escapes not yet implemented"
-          end
-
-          # acc = ""
-          # 4.times {
-          #   acc << __expect!(->(c) {
-          #                       # i'll leave this "slow" for now
-          #                       IS_DIGIT[c] || ("a".."f") === c || ("A".."F") === c
-          #                     })
-          # } # could be done better, i'm tired
-          # str << acc.to_i(16)
+          __failed "unicode escapes not yet reimplemented"
         else
-          __failed "Unexpected escape #{@c.chr}"
+          __failed "unexpected escape #{@c.chr}"
         end
 
         return __advance
