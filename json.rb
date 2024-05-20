@@ -154,11 +154,11 @@ module LevisLibs
 
       def __parse_number
         start = @idx
-        __read_integer || __failed("Expected the integer part of a numeric literal, got '#{@c&.chr || '\0'}'")
+        __read_integer || __failed("Expected the integer part of a numeric literal, got '#{@c&.chr || "EOF"}'")
         iend = @idx
 
-        __read_frac || __failed("Expected nothing or the fractional part of a numeric literal, got '#{@c&.chr || '\0'}'")
-        __read_exp || __failed("Expected nothing or the exponent part of a numeric literal, got '#{@c&.chr || '\0'}'")
+        __read_frac || __failed("Expected nothing or the fractional part of a numeric literal, got '#{@c&.chr || "EOF"}'")
+        __read_exp || __failed("Expected nothing or the exponent part of a numeric literal, got '#{@c&.chr || "EOF"}'")
         nend = @idx
 
         if iend == nend
