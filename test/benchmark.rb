@@ -34,7 +34,7 @@ puts_immediate "Slowest Time: #{data.max.to_sf}ms"
 $gtk.write_file("tmp/benchmark.json", <<~JSON)
   [
     {
-      "name": "Time to parse `crimes.json`",
+      "name": "Time to parse crimes.json",
       "value": #{mean},
       "unit": "ms",
       "range": "± #{Math.sqrt(var).to_sf}ms"
