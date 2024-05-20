@@ -9,7 +9,7 @@ on:
       - master
 
 permissions:
-  pull_requests: write
+  pull-requests: write
   contents: write
   deployments: write
 
