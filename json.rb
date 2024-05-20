@@ -44,6 +44,7 @@ module LevisLibs
       end
 
       def __advance
+        __failed "Unexpected EOF" unless @c
         @c = @str.getbyte(@idx += 1)
         return true
       end
@@ -54,7 +55,7 @@ module LevisLibs
 
       def __expectb!(b)
         return __advance if @c == b
-        __failed "Expected #{b.chr.inspect}, but got #{@c.chr.inspect}"
+        __failed "Expected #{b.chr.inspect}, but got #{@c&.chr&.inspect || "EOF"}"
       end
 
       def __string(str)
@@ -62,7 +63,7 @@ module LevisLibs
         i = 0
         while sl > i
           if @c != str.getbyte(i)
-            __failed "Expected '#{str[i]}', got '#{@c.chr}' (in \"#{str}\" literal)"
+            __failed "Expected '#{str[i]}', got '#{@c&.chr || "EOF"}' (in \"#{str}\" literal)"
           end
 
           __advance
@@ -124,17 +125,21 @@ module LevisLibs
 
       def __parse_null
         __string("null")
+        return nil
       end
 
       def __parse_true
         __string("true")
+        return true
       end
 
       def __parse_false
         __string("false")
+        return false
       end
 
       def __parse_value
+        __failed "Unexpected EOF" unless @c
         send(MAGIC_DISPATCH_TABLE[@c])
       end
 
@@ -219,22 +224,23 @@ module LevisLibs
       def __read_escape(str)
         return false unless __matchb!(0x5c) # 0x5c is backslash
 
-        chr = @c.chr
-        case chr
-        when ?", ?\\, ?/
-          str << chr
-        when ?b
+        case @c
+        when 0x22, 0x5c, 0x2f # 0x22 is double quote, 0x5c is backslash, 0x2f is forward slash
+          str << @c.chr
+        when 0x62 # 0x62 is b
           str << "\b"
-        when ?f
+        when 0x66 # 0x66 is f
           str << "\f"
-        when ?n
+        when 0x6e # 0x6e is n
           str << "\n"
-        when ?r
+        when 0x72 # 0x72 is r
           str << "\r"
-        when ?t
+        when 0x74 # 0x74 is t
           str << "\t"
-        when ?u
+        when 0x75 # 0x75 is u
           __failed "unicode escapes not yet reimplemented"
+        when nil
+          __failed "Unexpected EOF"
         else
           __failed "unexpected escape #{@c.chr}"
         end
