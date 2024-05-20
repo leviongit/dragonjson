@@ -117,10 +117,12 @@ module LevisLibs
         return hash
       end
 
-      def __parse_element
+      def parse
         __skip_ws
         return nil if @c.nil?
         __parse_value
+        __skip_ws
+        __failed("expected EOF got #{@c.chr.inspect}") if @c
       end
 
       def __parse_null
