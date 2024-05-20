@@ -1,0 +1,46 @@
+name: "Tests"
+
+on:
+  pull_request:
+    paths:
+      - '**.rb'
+  push:
+    branches:
+      - master
+
+jobs:
+  benchmark-pr:
+    strategy:
+      matrix:
+        version:
+          - '5.25'
+        tier:
+          - standard
+      fail-fast: false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kfischer-okarin/download-dragonruby@v1
+        with:
+          version: ${{ matrix.version }}
+          license_tier: ${{ matrix.tier }}
+      - run: ./dragonruby test --eval test/benchmark.rb --no-tick
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+      - uses: actions/cache@v4
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-${{ matrix.version }}-${{ matrix.tier }}-benchmark
+      - uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'customSmallerIsBetter'
+          output-file-path: test/tmp/benchmark.json
+          external-data-json-path: ./cache/benchmark-data.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          skip-fetch-gh-pages: true
+          comment-always: true
+          summary-always: true
