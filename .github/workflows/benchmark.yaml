@@ -8,6 +8,11 @@ on:
     branches:
       - master
 
+permissions:
+  pull_requests: write
+  contents: write
+  deployments: write
+
 jobs:
   benchmark-pr:
     strategy:
