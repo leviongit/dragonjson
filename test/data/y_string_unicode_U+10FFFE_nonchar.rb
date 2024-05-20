@@ -1,1 +1,1 @@
-["\uDBFF\uDFFE"]
+["\u{10FFFE}"]
