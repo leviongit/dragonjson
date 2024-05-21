@@ -1,1 +1,1 @@
-%Q(unexpected escape \xF0 at [1:4])
+%q(unexpected escape "\xf0" at [1:4])

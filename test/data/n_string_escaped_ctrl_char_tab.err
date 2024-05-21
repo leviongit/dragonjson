@@ -1,1 +1,1 @@
-%Q(unexpected escape \x09 at [1:4])
+%q(unexpected escape "\t" at [1:4])

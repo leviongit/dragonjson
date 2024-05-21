@@ -4,6 +4,7 @@ module LevisLibs
       class UnexpectedChar < StandardError
       end
 
+      STRING_U = "U".freeze
       MAGIC_DISPATCH_TABLE = [:__raise_unexpected] * 256
       MAGIC_DISPATCH_TABLE['"'.ord] = :__parse_string
       MAGIC_DISPATCH_TABLE['-'.ord] = :__parse_number
@@ -119,7 +120,7 @@ module LevisLibs
 
       def parse
         __skip_ws
-        return nil if @c.nil?
+        return __failed("no data") if @c.nil?
         v = __parse_value
         __skip_ws
         __failed("expected EOF got #{@c.chr.inspect}") if @c
@@ -230,31 +231,60 @@ module LevisLibs
         end
       end
 
+      def __readexpect_hexdigit
+        c = @c
+        ((isnum   = c >= 0x30 && c <= 0x39)  ||
+         (isupper = c >= 0x41 && c <= 0x46)  ||
+         (c >= 0x61 && c <= 0x66)) ||
+         __failed("expected hex digit [0-9a-fA-F] got #{@c&.chr&.inspect || "EOF"}")
+        __advance
+
+        if isnum
+          return c - 0x30
+        elsif isupper
+          return c - 0x37
+        else
+          return c - 0x57
+        end
+      end
+
       def __read_escape(str)
         return false unless __matchb!(0x5c) # 0x5c is backslash
 
         case @c
         when 0x22, 0x5c, 0x2f # 0x22 is double quote, 0x5c is backslash, 0x2f is forward slash
-          str << @c.chr
+          str << @c
+          return __advance
         when 0x62 # b
           str << 0x08 # bell
+          return __advance
         when 0x66 # f
           str << 0x0c # form feed
+          return __advance
         when 0x6e # n
           str << 0x0a # new line
+          return __advance
         when 0x72 # r
           str << 0x0d # carriage ret
+          return __advance
         when 0x74 # t
           str << 0x09 # horizontal tab
+          return __advance
         when 0x75 # u
-          __failed("unicode escapes not yet reimplemented")
+          __advance
+
+          cp = __readexpect_hexdigit
+          cp = cp * 0x10 + __readexpect_hexdigit
+          cp = cp * 0x10 + __readexpect_hexdigit
+          cp = cp * 0x10 + __readexpect_hexdigit
+
+          str << [cp].pack(STRING_U) # is this faster than just doing the ~~mental~~ bit arithmetic? idk probably?
+          return true
         when nil
           __failed("Unexpected EOF")
         else
-          __failed("unexpected escape #{@c.chr}")
+          __failed("unexpected escape #{@c.chr.inspect}")
         end
-
-        return __advance
       end
 
       def __parse_string
