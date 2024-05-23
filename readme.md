@@ -3,9 +3,9 @@
 ## parsing json
 
 ```rb
-LevisLibs::JSON.parse(json_string,
-                      symbolize_keys: boolean,
-                      extensions: boolean)
+Argonaut::JSON.parse(json_string,
+                     symbolize_keys: boolean,
+                     extensions: boolean)
 ```
 
 ### arguments
