@@ -24,7 +24,7 @@ threshhold = 20.map do
 end
 puts_immediate "Threshhold Time: #{threshhold.min.to_sf}ms"
 
-data = 20.map { benchmark { LevisLibs::JSON.parse(json) } }
+data = 20.map { benchmark { Argonaut::JSON.parse(json) } }
 mean = data.sum / data.size
 var = data.map { |time| (time - mean) ** 2 }.sum / data.size
 puts_immediate "Average Time: #{mean.to_sf}ms ± #{Math.sqrt(var).to_sf}ms"

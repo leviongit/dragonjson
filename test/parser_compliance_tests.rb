@@ -19,10 +19,10 @@ $gtk.list_files("data").each do |name|
 
     if data
       data = eval(data)
-      assert.equal!(LevisLibs::JSON.parse(json), data, "Expected data can be found in test/data/#{name}.rb")
+      assert.equal!(Argonaut::JSON.parse(json), data, "Expected data can be found in test/data/#{name}.rb")
     elsif mesg
       begin
-        LevisLibs::JSON.parse(json)
+        Argonaut::JSON.parse(json)
       rescue => e
         mesg = eval(mesg)
         assert.equal!(e.message, mesg, "Expected data can be found in test/data/#{name}.err")

@@ -1,4 +1,4 @@
-module LevisLibs
+module Argonaut
   module JSON
     class JSONParser
       class UnexpectedChar < StandardError
