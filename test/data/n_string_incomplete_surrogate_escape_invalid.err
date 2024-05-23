@@ -1,1 +1,1 @@
-%q(unexpected escape "x" at [1:16])
+%q(low surrogate not in low surrogate range at [1:15])

@@ -278,6 +278,27 @@ module LevisLibs
           cp = cp * 0x10 + __readexpect_hexdigit
           cp = cp * 0x10 + __readexpect_hexdigit
 
+          if (cp >= 0xd800 && cp <=0xdfff)
+            __failed("unexpected unpaired high surrogate") if cp >= 0xdc00
+
+            __expectb!(0x5c) && # \
+              __expectb!(0x75) || # u
+              __failed("expected second unicode escape in surrogate pair")
+
+            cp2 = __readexpect_hexdigit
+            cp2 = cp2 * 0x10 + __readexpect_hexdigit
+            cp2 = cp2 * 0x10 + __readexpect_hexdigit
+            cp2 = cp2 * 0x10 + __readexpect_hexdigit
+
+            __failed("low surrogate not in low surrogate range") unless cp2 >= 0xdc00 && cp2 <= 0xdfff
+
+            cp  &= 0x3ff
+            cp2 &= 0x3ff
+            cp  *= 0x400
+            cp  += cp2
+            cp  += 0x10000
+          end
+
           str << [cp].pack(STRING_U) # is this faster than just doing the ~~mental~~ bit arithmetic? idk probably?
           return true
         when nil
