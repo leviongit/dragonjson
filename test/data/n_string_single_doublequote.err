@@ -1,1 +1,1 @@
-%Q(Unexpected EOF at [1:2])
+%q(unexpected EOF in string literal at [1:2])

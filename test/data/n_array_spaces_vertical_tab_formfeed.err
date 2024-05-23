@@ -1,1 +1,1 @@
-%Q(Expected "]", but got "\\\\" at [1:6])
+%q(unexpected "\v" in string literal at [1:3])

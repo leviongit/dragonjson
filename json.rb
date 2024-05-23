@@ -25,6 +25,46 @@ module LevisLibs
       MAGIC_DISPATCH_TABLE['{'.ord] = :__parse_hash
       MAGIC_DISPATCH_TABLE.freeze
 
+      STRING_CHARS_END_TABLE = [false] * 257
+      STRING_CHARS_END_TABLE[0x00] = true
+      STRING_CHARS_END_TABLE[0x01] = true
+      STRING_CHARS_END_TABLE[0x02] = true
+      STRING_CHARS_END_TABLE[0x03] = true
+      STRING_CHARS_END_TABLE[0x04] = true
+      STRING_CHARS_END_TABLE[0x05] = true
+      STRING_CHARS_END_TABLE[0x06] = true
+      STRING_CHARS_END_TABLE[0x07] = true
+      STRING_CHARS_END_TABLE[0x08] = true
+      STRING_CHARS_END_TABLE[0x09] = true
+      STRING_CHARS_END_TABLE[0x0a] = true
+      STRING_CHARS_END_TABLE[0x0b] = true
+      STRING_CHARS_END_TABLE[0x0c] = true
+      STRING_CHARS_END_TABLE[0x0d] = true
+      STRING_CHARS_END_TABLE[0x0e] = true
+      STRING_CHARS_END_TABLE[0x0f] = true
+      STRING_CHARS_END_TABLE[0x10] = true
+      STRING_CHARS_END_TABLE[0x11] = true
+      STRING_CHARS_END_TABLE[0x12] = true
+      STRING_CHARS_END_TABLE[0x13] = true
+      STRING_CHARS_END_TABLE[0x14] = true
+      STRING_CHARS_END_TABLE[0x15] = true
+      STRING_CHARS_END_TABLE[0x16] = true
+      STRING_CHARS_END_TABLE[0x17] = true
+      STRING_CHARS_END_TABLE[0x18] = true
+      STRING_CHARS_END_TABLE[0x19] = true
+      STRING_CHARS_END_TABLE[0x1a] = true
+      STRING_CHARS_END_TABLE[0x1b] = true
+      STRING_CHARS_END_TABLE[0x1c] = true
+      STRING_CHARS_END_TABLE[0x1d] = true
+      STRING_CHARS_END_TABLE[0x1e] = true
+      STRING_CHARS_END_TABLE[0x1f] = true
+      STRING_CHARS_END_TABLE[0x100] = true
+      STRING_CHARS_ERROR_TABLE = STRING_CHARS_END_TABLE.dup.freeze
+      STRING_CHARS_END_TABLE[0x22] = true
+      STRING_CHARS_END_TABLE[0x5c] = true
+
+      STRING_CHARS_END_TABLE.freeze
+
       def initialize(string, symbolize_keys: false, **kw)
         @str = string
         @idx = 0
@@ -223,7 +263,9 @@ module LevisLibs
 
       def __read_characters(str)
         start = @idx
-        __advance until @c == 0x5c || @c == 0x22 # 0x5c is backslash, 0x22 is double quote
+        __advance until STRING_CHARS_END_TABLE[@c || 0x100]
+
+        __failed("unexpected #{@c&.chr&.inspect || "EOF"} in string literal") if STRING_CHARS_ERROR_TABLE[@c || 0x100]
 
         if start != @idx
           str << @str[start...@idx]
