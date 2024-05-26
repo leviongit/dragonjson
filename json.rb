@@ -416,13 +416,6 @@ module Argonaut
 
     class << self
       def write(value, indent_size = 4, **kw)
-        if !(Array === value || Hash === value)
-          raise(
-            ArgumentError,
-            "Top-level value must be either an Array or a Hash"
-          )
-        end
-
         value.to_json(
           indent_depth: 0,
           indent_size: indent_size,
