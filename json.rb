@@ -7,22 +7,22 @@ module Argonaut
       STRING_U = "U".freeze
       MAGIC_DISPATCH_TABLE = [:__raise_unexpected] * 256
       MAGIC_DISPATCH_TABLE['"'.ord] = :__parse_string
-      MAGIC_DISPATCH_TABLE['-'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['0'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['1'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['2'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['3'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['4'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['5'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['6'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['7'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['8'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['9'.ord] = :__parse_number
-      MAGIC_DISPATCH_TABLE['['.ord] = :__parse_array
-      MAGIC_DISPATCH_TABLE['f'.ord] = :__parse_false
-      MAGIC_DISPATCH_TABLE['n'.ord] = :__parse_null
-      MAGIC_DISPATCH_TABLE['t'.ord] = :__parse_true
-      MAGIC_DISPATCH_TABLE['{'.ord] = :__parse_hash
+      MAGIC_DISPATCH_TABLE["-".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["0".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["1".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["2".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["3".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["4".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["5".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["6".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["7".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["8".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["9".ord] = :__parse_number
+      MAGIC_DISPATCH_TABLE["[".ord] = :__parse_array
+      MAGIC_DISPATCH_TABLE["f".ord] = :__parse_false
+      MAGIC_DISPATCH_TABLE["n".ord] = :__parse_null
+      MAGIC_DISPATCH_TABLE["t".ord] = :__parse_true
+      MAGIC_DISPATCH_TABLE["{".ord] = :__parse_hash
       MAGIC_DISPATCH_TABLE.freeze
 
       STRING_CHARS_END_TABLE = [false] * 257
@@ -96,6 +96,7 @@ module Argonaut
 
       def __expectb!(b)
         return __advance if @c == b
+
         __failed "Expected #{b.chr.inspect}, but got #{@c&.chr&.inspect || "EOF"}"
       end
 
@@ -103,9 +104,7 @@ module Argonaut
         sl = str.length
         i = 0
         while sl > i
-          if @c != str.getbyte(i)
-            __failed "Expected '#{str[i]}', got '#{@c&.chr || "EOF"}' (in \"#{str}\" literal)"
-          end
+          __failed "Expected '#{str[i]}', got '#{@c&.chr || "EOF"}' (in \"#{str}\" literal)" if @c != str.getbyte(i)
 
           __advance
           i += 1
@@ -161,6 +160,7 @@ module Argonaut
       def parse
         __skip_ws
         return __failed("no data") if @c.nil?
+
         v = __parse_value
         __skip_ws
         __failed("expected EOF got #{@c.chr.inspect}") if @c
@@ -170,6 +170,7 @@ module Argonaut
       def __parse_element
         __skip_ws
         return nil if @c.nil?
+
         __parse_value
       end
 
@@ -220,11 +221,13 @@ module Argonaut
 
       def __read_frac
         return true unless __matchb!(0x2e) # 0x2e is period
+
         __read_some_digits
       end
 
       def __read_exp
         return true unless @c == 0x65 || @c == 0x45 # 0x65 is e, 0x45 is E
+
         __advance
         __read_sign
         __read_some_digits
@@ -267,10 +270,10 @@ module Argonaut
 
         __failed("unexpected #{@c&.chr&.inspect || "EOF"} in string literal") if STRING_CHARS_ERROR_TABLE[@c || 0x100]
 
-        if start != @idx
-          str << @str[start...@idx]
-          return true
-        end
+        return if start == @idx
+
+        str << @str[start...@idx]
+        return true
       end
 
       def __readexpect_hexdigit
@@ -278,7 +281,7 @@ module Argonaut
         ((isnum   = c >= 0x30 && c <= 0x39)  ||
          (isupper = c >= 0x41 && c <= 0x46)  ||
          (c >= 0x61 && c <= 0x66)) ||
-         __failed("expected hex digit [0-9a-fA-F] got #{@c&.chr&.inspect || "EOF"}")
+          __failed("expected hex digit [0-9a-fA-F] got #{@c&.chr&.inspect || "EOF"}")
         __advance
 
         if isnum
@@ -320,7 +323,7 @@ module Argonaut
           cp = cp * 0x10 + __readexpect_hexdigit
           cp = cp * 0x10 + __readexpect_hexdigit
 
-          if (cp >= 0xd800 && cp <=0xdfff)
+          if cp >= 0xd800 && cp <= 0xdfff
             __failed("unexpected unpaired high surrogate") if cp >= 0xdc00
 
             __expectb!(0x5c) && # \
@@ -444,14 +447,19 @@ module Argonaut
         space_in_empty: true,
         **kw
       )
-        raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? { String === _1 || Symbol === _1 }
+        raise JSONKeyError, "Not all keys are instances of `String` or `Symbol`" if !keys.all? {
+                                                                                      String === _1 || Symbol === _1
+                                                                                    }
 
         space_in_empty &&= !minify
 
         return "{#{space_in_empty ? " " : ""}}" if self.empty?
 
         space = minify ? "" : " "
-        pairs = self.map { |k, v| "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty, **kw)}" }
+        pairs = self.map { |k, v|
+          "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size,
+                                                               minify: minify, space_in_empty: space_in_empty, **kw)}"
+        }
 
         if minify
           "{#{pairs.join(",")}}"
@@ -496,9 +504,7 @@ module Argonaut
     end
 
     class ::Numeric
-      def to_json(
-        **_kw
-      )
+      def to_json(**_kw)
         self.inspect
       end
     end
@@ -530,7 +536,6 @@ module Argonaut
     class ::String
       def to_json(**_kw)
         return "\"\"" if self.empty?
-
 
         acc = "\""
 
@@ -578,7 +583,7 @@ module Argonaut
         **kw
       )
         if extensions
-          {:"@@jm:symbol" => self.to_s}.to_json(**kw, minify: true)
+          { "@@jm:symbol": self.to_s }.to_json(**kw, minify: true)
         else
           self.to_s.inspect
         end
