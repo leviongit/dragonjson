@@ -448,7 +448,7 @@ module Argonaut
 
         space_in_empty &&= !minify
 
-        return "{#{space_in_empty ? " " : ""}}" if self.length == 0
+        return "{#{space_in_empty ? " " : ""}}" if self.empty?
 
         space = minify ? "" : " "
         pairs = self.map { |k, v| "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size, minify: minify, space_in_empty: space_in_empty, **kw)}" }
@@ -473,7 +473,7 @@ module Argonaut
       )
         space_in_empty &&= !minify
 
-        return "[#{space_in_empty ? " " : ""}]" if self.length == 0
+        return "[#{space_in_empty ? " " : ""}]" if self.empty?
 
         values = self.map { |v|
           v.to_json(
@@ -504,96 +504,77 @@ module Argonaut
     end
 
     class ::TrueClass
-      def to_json(
-        **_kw
-      )
-        "true"
+      TRUE_STR_REPR = "true".freeze
+
+      def to_json(**_kw)
+        TRUE_STR_REPR
       end
     end
 
     class ::FalseClass
-      def to_json(
-        **_kw
-      )
-        "false"
+      FALSE_STR_REPR = "false".freeze
+
+      def to_json(**_kw)
+        FALSE_STR_REPR
       end
     end
 
     class ::NilClass
-      def to_json(
-        **_kw
-      )
-        "null"
+      NIL_STR_REPR = "null".freeze
+
+      def to_json(**_kw)
+        NIL_STR_REPR
       end
     end
 
     class ::String
-      def to_json(
-        **_kw
-      )
-        if $__ll_json_move_fast_and_break_things
-          return "\"\"" if self.length == 0
+      def to_json(**_kw)
+        return "\"\"" if self.empty?
 
-          # needs_escaping = -> (c) { c == "\"" || c == "\\" }
-          # is_not_printable = -> (c) { ("\x00".."\x1f") === c }
 
-          acc = "\""
+        acc = "\""
 
-          bi = 0
-          ei = 0
-          l = self.length
+        bi = 0
+        ei = 0
+        l = self.length
 
-          while ei < l
-            cc = getbyte(ei)
-            needs_escaping_v = cc == 0x22 || cc == 0x5c
-            is_not_printable_v = cc < 0x20 || cc > 0x7f
-            next ei += 1 unless needs_escaping_v || is_not_printable_v
-
-            acc << self[bi...ei]
-            bi = ei
-
-            if needs_escaping_v
-              bi += 1
-              ei += 1
-              acc << "\\" << cc
-              next
-            end
-
-            next unless is_not_printable_v
-
-            bi += 1
-            ei += 1
-            if cc == 8
-              acc << "\\b"
-            elsif cc == 9
-              acc << "\\t"
-            elsif cc == 10
-              acc << "\\n"
-            elsif cc == 12
-              acc << "\\f"
-            elsif cc == 13
-              acc << "\\r"
-            else
-              acc << "\\u" << cc.to_s(16).rjust(4, "0")
-            end
-
-            next
-          end
+        while ei < l
+          cc = getbyte(ei)
+          needs_escaping_v = cc == 0x22 || cc == 0x5c
+          next ei += 1 unless needs_escaping_v || cc < 0x20
 
           acc << self[bi...ei]
+          bi = ei
 
-          acc << "\""
-          acc
-        else
-          self.inspect
+          acc << 0x5c # \
+          bi += 1
+          ei += 1
+
+          if needs_escaping_v
+            acc << cc
+          elsif cc == 8
+            acc << 0x62 # b
+          elsif cc == 9
+            acc << 0x74 # t
+          elsif cc == 10
+            acc << 0x6e # n
+          elsif cc == 12
+            acc << 0x66 # f
+          elsif cc == 13
+            acc << 0x72 # r
+          end
         end
+
+        acc << self[bi...ei]
+
+        acc << 0x22
+        acc
       end
     end
 
     class ::Symbol
       def to_json(
         extensions: false,
-        symbolize_keys: false,
         **kw
       )
         if extensions
