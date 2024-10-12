@@ -65,12 +65,13 @@ module Argonaut
 
       STRING_CHARS_END_TABLE.freeze
 
-      def initialize(string, symbolize_keys: false, **kw)
+      def initialize(string, symbolize_keys: false, symbol_string_ext: false, **kw)
         @str = string
         @idx = 0
         @c = string.getbyte(0)
 
         @symbolize_keys = symbolize_keys
+        @symbol_string_ext = symbol_string_ext
         @kw = kw
       end
 
@@ -260,7 +261,9 @@ module Argonaut
 
       def __parse_characters
         str = ""
+        issym = __matchb!(0x3a) if @symbol_string_ext
         nil while __read_characters(str) || __read_escape(str)
+        str = str.to_sym if issym
         str
       end
 
@@ -450,7 +453,7 @@ module Argonaut
 
         space = minify ? "" : " "
         pairs = self.map { |k, v|
-          "#{k.to_json(extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size,
+          "#{k.to_json(**kw, extensions: false)}:#{space}#{v.to_json(indent_depth: indent_depth + 1, indent_size: indent_size,
                                                                minify: minify, space_in_empty: space_in_empty, **kw)}"
         }
 
@@ -527,7 +530,7 @@ module Argonaut
     end
 
     class ::String
-      def to_json(**_kw)
+      def to_json(**kw)
         return "\"\"" if self.empty?
 
         acc = "\""
@@ -536,6 +539,12 @@ module Argonaut
         ei = 0
         l = self.length
 
+        if kw[:symbol_string_ext] && self[0].ord == 0x3a
+          acc << "\\u003a"
+          bi = 1
+          ei = 1
+        end
+        
         while ei < l
           cc = getbyte(ei)
           needs_escaping_v = cc == 0x22 || cc == 0x5c
@@ -575,10 +584,12 @@ module Argonaut
         extensions: false,
         **kw
       )
-        if extensions
+        if kw[:symbol_string_ext]
+          (":" << self.to_s).to_json(**kw, symbol_string_ext: false)
+        elsif extensions
           { "@@jm:symbol": self.to_s }.to_json(**kw, minify: true)
         else
-          self.to_s.inspect
+          self.to_s.to_json(**kw)
         end
       end
     end
